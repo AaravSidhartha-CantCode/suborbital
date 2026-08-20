@@ -1,0 +1,58 @@
+{
+  "$defs": {
+    "MissionStatus": {
+      "enum": [
+        "pending",
+        "in_progress",
+        "complete",
+        "infeasible"
+      ],
+      "title": "MissionStatus",
+      "type": "string"
+    }
+  },
+  "description": "A fixed-volume downlink mission with a hard deadline and budget cap.",
+  "properties": {
+    "deadline": {
+      "description": "Hard deadline (UTC)",
+      "format": "date-time",
+      "title": "Deadline",
+      "type": "string"
+    },
+    "max_budget_usd": {
+      "description": "Maximum allowable cost in USD",
+      "minimum": 0.0,
+      "title": "Max Budget Usd",
+      "type": "number"
+    },
+    "mission_id": {
+      "description": "Unique mission ID (prefix: mission_)",
+      "title": "Mission Id",
+      "type": "string"
+    },
+    "name": {
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "required_volume_mb": {
+      "description": "Required data volume in decimal megabytes",
+      "exclusiveMinimum": 0.0,
+      "title": "Required Volume Mb",
+      "type": "number"
+    },
+    "status": {
+      "$ref": "#/$defs/MissionStatus",
+      "default": "pending"
+    }
+  },
+  "required": [
+    "mission_id",
+    "name",
+    "required_volume_mb",
+    "deadline",
+    "max_budget_usd"
+  ],
+  "title": "DownlinkMission",
+  "type": "object"
+}

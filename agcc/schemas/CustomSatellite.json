@@ -1,0 +1,215 @@
+{
+  "$defs": {
+    "CustomCircularOrbit": {
+      "description": "Defines a custom circular LEO orbit.",
+      "properties": {
+        "altitude_km": {
+          "description": "Orbital altitude in kilometers",
+          "exclusiveMinimum": 0.0,
+          "title": "Altitude Km",
+          "type": "number"
+        },
+        "argument_of_perigee_deg": {
+          "description": "Argument of perigee in degrees (0 for circular)",
+          "exclusiveMaximum": 360.0,
+          "minimum": 0.0,
+          "title": "Argument Of Perigee Deg",
+          "type": "number"
+        },
+        "epoch": {
+          "description": "Epoch of orbital elements (UTC)",
+          "format": "date-time",
+          "title": "Epoch",
+          "type": "string"
+        },
+        "inclination_deg": {
+          "description": "Inclination in degrees",
+          "maximum": 180.0,
+          "minimum": 0.0,
+          "title": "Inclination Deg",
+          "type": "number"
+        },
+        "input_mode": {
+          "$ref": "#/$defs/OrbitInputMode",
+          "default": "custom_circular"
+        },
+        "raan_deg": {
+          "description": "Right ascension of ascending node in degrees",
+          "exclusiveMaximum": 360.0,
+          "minimum": 0.0,
+          "title": "Raan Deg",
+          "type": "number"
+        },
+        "true_anomaly_deg": {
+          "description": "True anomaly at epoch in degrees",
+          "exclusiveMaximum": 360.0,
+          "minimum": 0.0,
+          "title": "True Anomaly Deg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "altitude_km",
+        "inclination_deg",
+        "raan_deg",
+        "argument_of_perigee_deg",
+        "true_anomaly_deg",
+        "epoch"
+      ],
+      "title": "CustomCircularOrbit",
+      "type": "object"
+    },
+    "OrbitInputMode": {
+      "enum": [
+        "custom_circular"
+      ],
+      "title": "OrbitInputMode",
+      "type": "string"
+    },
+    "Provenance": {
+      "description": "Records origin and currency of externally derived data.",
+      "properties": {
+        "assumption_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumption Fields",
+          "type": "array"
+        },
+        "fetched_at": {
+          "format": "date-time",
+          "title": "Fetched At",
+          "type": "string"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "source_name": {
+          "title": "Source Name",
+          "type": "string"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "source_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Uri"
+        },
+        "source_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Version"
+        }
+      },
+      "required": [
+        "source_type",
+        "source_name",
+        "fetched_at"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "SatelliteCommunications": {
+      "description": "Communication system parameters for the satellite.",
+      "properties": {
+        "bands": {
+          "description": "Supported frequency bands",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Bands",
+          "type": "array"
+        },
+        "downlink_rate_mbps": {
+          "description": "Nominal downlink rate in Mbit/s",
+          "exclusiveMinimum": 0.0,
+          "title": "Downlink Rate Mbps",
+          "type": "number"
+        },
+        "min_elevation_deg": {
+          "description": "Minimum elevation angle for contact in degrees",
+          "maximum": 90.0,
+          "minimum": 0.0,
+          "title": "Min Elevation Deg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "downlink_rate_mbps",
+        "bands",
+        "min_elevation_deg"
+      ],
+      "title": "SatelliteCommunications",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "manual",
+        "catalog",
+        "forecast",
+        "measured",
+        "derived",
+        "not_configured"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    }
+  },
+  "description": "Top-level satellite definition.",
+  "properties": {
+    "comms": {
+      "$ref": "#/$defs/SatelliteCommunications"
+    },
+    "name": {
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "orbit": {
+      "$ref": "#/$defs/CustomCircularOrbit"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "satellite_id": {
+      "description": "Unique satellite ID (prefix: sat_)",
+      "title": "Satellite Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "satellite_id",
+    "name",
+    "orbit",
+    "comms",
+    "provenance"
+  ],
+  "title": "CustomSatellite",
+  "type": "object"
+}

@@ -1,0 +1,119 @@
+{
+  "$defs": {
+    "Provenance": {
+      "description": "Records origin and currency of externally derived data.",
+      "properties": {
+        "assumption_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumption Fields",
+          "type": "array"
+        },
+        "fetched_at": {
+          "format": "date-time",
+          "title": "Fetched At",
+          "type": "string"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "source_name": {
+          "title": "Source Name",
+          "type": "string"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "source_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Uri"
+        },
+        "source_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Version"
+        }
+      },
+      "required": [
+        "source_type",
+        "source_name",
+        "fetched_at"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "manual",
+        "catalog",
+        "forecast",
+        "measured",
+        "derived",
+        "not_configured"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    }
+  },
+  "description": "Normalized tropospheric / weather observation for a station.",
+  "properties": {
+    "cloud_cover_fraction": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Cloud Cover Fraction",
+      "type": "number"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "rain_rate_mm_per_hr": {
+      "minimum": 0.0,
+      "title": "Rain Rate Mm Per Hr",
+      "type": "number"
+    },
+    "station_id": {
+      "title": "Station Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "station_id",
+    "observed_at",
+    "rain_rate_mm_per_hr",
+    "cloud_cover_fraction",
+    "provenance"
+  ],
+  "title": "WeatherSnapshot",
+  "type": "object"
+}

@@ -1,0 +1,40 @@
+{
+  "description": "Estimated physical transfer capacity for a pass.",
+  "properties": {
+    "capacity_id": {
+      "description": "Unique capacity ID (prefix: capacity_)",
+      "title": "Capacity Id",
+      "type": "string"
+    },
+    "duration_seconds": {
+      "minimum": 0.0,
+      "title": "Duration Seconds",
+      "type": "number"
+    },
+    "estimated_capacity_mb": {
+      "description": "Estimated transferable volume in decimal MB",
+      "minimum": 0.0,
+      "title": "Estimated Capacity Mb",
+      "type": "number"
+    },
+    "estimated_rate_mbps": {
+      "description": "Estimated transfer rate in Mbit/s",
+      "minimum": 0.0,
+      "title": "Estimated Rate Mbps",
+      "type": "number"
+    },
+    "pass_id": {
+      "title": "Pass Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "capacity_id",
+    "pass_id",
+    "estimated_rate_mbps",
+    "estimated_capacity_mb",
+    "duration_seconds"
+  ],
+  "title": "CapacityEstimate",
+  "type": "object"
+}

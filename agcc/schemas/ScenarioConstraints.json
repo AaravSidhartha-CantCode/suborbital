@@ -1,0 +1,21 @@
+{
+  "description": "Hard constraints that govern planning for a scenario.",
+  "properties": {
+    "deadline": {
+      "format": "date-time",
+      "title": "Deadline",
+      "type": "string"
+    },
+    "max_budget_usd": {
+      "minimum": 0.0,
+      "title": "Max Budget Usd",
+      "type": "number"
+    }
+  },
+  "required": [
+    "max_budget_usd",
+    "deadline"
+  ],
+  "title": "ScenarioConstraints",
+  "type": "object"
+}

@@ -1,0 +1,34 @@
+{
+  "description": "Communication system parameters for the satellite.",
+  "properties": {
+    "bands": {
+      "description": "Supported frequency bands",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Bands",
+      "type": "array"
+    },
+    "downlink_rate_mbps": {
+      "description": "Nominal downlink rate in Mbit/s",
+      "exclusiveMinimum": 0.0,
+      "title": "Downlink Rate Mbps",
+      "type": "number"
+    },
+    "min_elevation_deg": {
+      "description": "Minimum elevation angle for contact in degrees",
+      "maximum": 90.0,
+      "minimum": 0.0,
+      "title": "Min Elevation Deg",
+      "type": "number"
+    }
+  },
+  "required": [
+    "downlink_rate_mbps",
+    "bands",
+    "min_elevation_deg"
+  ],
+  "title": "SatelliteCommunications",
+  "type": "object"
+}

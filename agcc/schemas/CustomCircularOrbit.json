@@ -1,0 +1,68 @@
+{
+  "$defs": {
+    "OrbitInputMode": {
+      "enum": [
+        "custom_circular"
+      ],
+      "title": "OrbitInputMode",
+      "type": "string"
+    }
+  },
+  "description": "Defines a custom circular LEO orbit.",
+  "properties": {
+    "altitude_km": {
+      "description": "Orbital altitude in kilometers",
+      "exclusiveMinimum": 0.0,
+      "title": "Altitude Km",
+      "type": "number"
+    },
+    "argument_of_perigee_deg": {
+      "description": "Argument of perigee in degrees (0 for circular)",
+      "exclusiveMaximum": 360.0,
+      "minimum": 0.0,
+      "title": "Argument Of Perigee Deg",
+      "type": "number"
+    },
+    "epoch": {
+      "description": "Epoch of orbital elements (UTC)",
+      "format": "date-time",
+      "title": "Epoch",
+      "type": "string"
+    },
+    "inclination_deg": {
+      "description": "Inclination in degrees",
+      "maximum": 180.0,
+      "minimum": 0.0,
+      "title": "Inclination Deg",
+      "type": "number"
+    },
+    "input_mode": {
+      "$ref": "#/$defs/OrbitInputMode",
+      "default": "custom_circular"
+    },
+    "raan_deg": {
+      "description": "Right ascension of ascending node in degrees",
+      "exclusiveMaximum": 360.0,
+      "minimum": 0.0,
+      "title": "Raan Deg",
+      "type": "number"
+    },
+    "true_anomaly_deg": {
+      "description": "True anomaly at epoch in degrees",
+      "exclusiveMaximum": 360.0,
+      "minimum": 0.0,
+      "title": "True Anomaly Deg",
+      "type": "number"
+    }
+  },
+  "required": [
+    "altitude_km",
+    "inclination_deg",
+    "raan_deg",
+    "argument_of_perigee_deg",
+    "true_anomaly_deg",
+    "epoch"
+  ],
+  "title": "CustomCircularOrbit",
+  "type": "object"
+}

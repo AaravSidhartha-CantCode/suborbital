@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "PassStatus": {
+      "enum": [
+        "candidate",
+        "eligible",
+        "planned",
+        "committed",
+        "executed",
+        "unused",
+        "cancelled"
+      ],
+      "title": "PassStatus",
+      "type": "string"
+    }
+  },
+  "description": "A geometrically visible satellite-station interval.",
+  "properties": {
+    "aos": {
+      "description": "Acquisition of signal (UTC)",
+      "format": "date-time",
+      "title": "Aos",
+      "type": "string"
+    },
+    "los": {
+      "description": "Loss of signal (UTC)",
+      "format": "date-time",
+      "title": "Los",
+      "type": "string"
+    },
+    "max_elevation_deg": {
+      "maximum": 90.0,
+      "minimum": 0.0,
+      "title": "Max Elevation Deg",
+      "type": "number"
+    },
+    "pass_id": {
+      "description": "Unique pass ID (prefix: pass_)",
+      "title": "Pass Id",
+      "type": "string"
+    },
+    "satellite_id": {
+      "title": "Satellite Id",
+      "type": "string"
+    },
+    "station_id": {
+      "title": "Station Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/PassStatus",
+      "default": "candidate"
+    }
+  },
+  "required": [
+    "pass_id",
+    "satellite_id",
+    "station_id",
+    "aos",
+    "los",
+    "max_elevation_deg"
+  ],
+  "title": "CandidatePass",
+  "type": "object"
+}
