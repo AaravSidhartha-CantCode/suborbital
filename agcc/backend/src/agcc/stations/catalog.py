@@ -1,6 +1,6 @@
 """Station catalog loading and the external-provider protocol.
 
-The catalog loader reads a JSON file whose schema matches the GroundStation
+The catalog loader reads a JSON file whose schema matches the StationCatalog
 domain contract. The NotConfiguredStationCatalogProvider raises
 ExternalDataUnavailable with code STATION_CATALOG_NOT_CONFIGURED.
 """
@@ -64,4 +64,9 @@ def load_catalog_from_file(path: Path) -> StationCatalog:
     stations_raw: list[object] = raw.get("stations", [])
     stations = [GroundStation.model_validate(s) for s in stations_raw]
     stations.sort(key=lambda s: s.station_id)
-    return StationCatalog(stations=stations)
+
+    # Build catalog — pass all top-level fields from the JSON file
+    return StationCatalog.model_validate({
+        **{k: v for k, v in raw.items() if k not in ("stations", "_comment")},
+        "stations": [s.model_dump(mode="python") for s in stations],
+    })

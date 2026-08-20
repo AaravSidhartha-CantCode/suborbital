@@ -2,12 +2,29 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from agcc.domain.common import _validate_id
+from agcc.domain.common import Provenance, _require_utc, _validate_id
 from agcc.domain.enums import Band, CostModel
+
+# Fields that always require provenance when populated
+_PROVENANCE_REQUIRED_FIELDS = frozenset({
+    "latitude_deg",
+    "longitude_deg",
+    "altitude_m",
+    "supported_bands",
+    "max_downlink_rate_mbps",
+    "minimum_elevation_deg",
+    "setup_s",
+    "teardown_s",
+    "cost_model",
+    "booking_cost",
+    "cost_per_minute",
+    "currency",
+})
 
 
 class FieldProvenance(BaseModel):
@@ -32,16 +49,14 @@ class GroundStation(BaseModel):
     # Coordinates — must be sourced facts or explicitly marked simulation assumptions
     latitude_deg: float = Field(ge=-90.0, le=90.0, description="Geodetic latitude in degrees")
     longitude_deg: float = Field(
-        ge=-180.0, le=180.0, description="Geodetic longitude in degrees"
+        ge=-180.0, lt=180.0, description="Geodetic longitude in degrees"
     )
     altitude_m: float = Field(ge=0.0, description="Altitude above WGS-84 ellipsoid in meters")
 
-    # RF capability — required for planner eligibility
-    supported_bands: frozenset[Band] = Field(
-        description="Supported frequency bands (must be non-empty for planner eligibility)"
-    )
-    max_downlink_rate_mbps: float = Field(
-        gt=0.0, description="Station maximum downlink rate in Mbit/s"
+    # RF capability — optional; None means not yet configured
+    supported_bands: frozenset[Band] | None = None
+    max_downlink_rate_mbps: float | None = Field(
+        default=None, gt=0.0, description="Station maximum downlink rate in Mbit/s"
     )
     minimum_elevation_deg: float = Field(
         ge=0.0, le=90.0, description="Station minimum elevation mask in degrees"
@@ -74,31 +89,87 @@ class GroundStation(BaseModel):
         return _validate_id("station_", v)
 
     @model_validator(mode="after")
-    def _check_coordinates_sourced(self) -> GroundStation:
-        """Coordinates must either be sourced facts or explicitly listed as assumptions."""
-        coord_fields = {"latitude_deg", "longitude_deg", "altitude_m"}
+    def _check_field_provenance(self) -> GroundStation:
+        """Populated fields must each appear in exactly one of sources or assumptions."""
         sourced = set(self.field_provenance.sources.keys())
         assumed = set(self.field_provenance.assumptions)
-        for field in coord_fields:
-            if field not in sourced and field not in assumed:
+
+        # Check for fields in both sources and assumptions (invalid)
+        overlap = sourced & assumed
+        if overlap:
+            raise ValueError(
+                f"Fields appear in both sources and assumptions: {sorted(overlap)}. "
+                f"Each field must be in exactly one."
+            )
+
+        covered = sourced | assumed
+
+        # Determine which provenance-required fields are "populated"
+        populated_fields: set[str] = set()
+        for field in _PROVENANCE_REQUIRED_FIELDS:
+            val = getattr(self, field)
+            if val is None:
+                continue  # optional fields that are None don't need provenance
+            # supported_bands=frozenset() is populated (empty set counts)
+            populated_fields.add(field)
+
+        # Each populated field must be covered
+        for field in populated_fields:
+            if field not in covered:
                 raise ValueError(
-                    f"Coordinate field '{field}' must be listed in field_provenance.sources "
+                    f"Field '{field}' must be listed in field_provenance.sources "
                     f"or field_provenance.assumptions"
                 )
+
         return self
 
     @property
     def planner_eligible(self) -> bool:
         """True when the station has sufficient data for the planner."""
-        return bool(self.supported_bands) and self.max_downlink_rate_mbps > 0.0
+        return (
+            self.enabled
+            and self.supported_bands is not None
+            and len(self.supported_bands) > 0
+            and self.max_downlink_rate_mbps is not None
+            and self.max_downlink_rate_mbps > 0.0
+        )
 
 
 class StationCatalog(BaseModel):
-    """An ordered collection of ground stations."""
+    """An ordered collection of ground stations with metadata."""
 
     model_config = {"frozen": True}
 
+    catalog_id: str
+    schema_version: str
+    catalog_version: str
+    generated_at: datetime
+    provenance: Provenance
     stations: list[GroundStation] = Field(default_factory=list)
+
+    @field_validator("generated_at", mode="before")
+    @classmethod
+    def _check_generated_at(cls, v: Any) -> Any:
+        return _require_utc(v)
+
+    @model_validator(mode="after")
+    def _check_catalog_invariants(self) -> StationCatalog:
+        # catalog_id must start with "catalog_" and have content after prefix
+        if not self.catalog_id.startswith("catalog_") or len(self.catalog_id) <= len("catalog_"):
+            raise ValueError(
+                "catalog_id must start with 'catalog_' and have content after the prefix"
+            )
+        if not self.schema_version:
+            raise ValueError("schema_version must be non-empty")
+        if not self.catalog_version:
+            raise ValueError("catalog_version must be non-empty")
+        # Station IDs must be unique
+        ids = [s.station_id for s in self.stations]
+        if len(ids) != len(set(ids)):
+            from collections import Counter
+            dupes = [sid for sid, cnt in Counter(ids).items() if cnt > 1]
+            raise ValueError(f"Duplicate station IDs in catalog: {dupes}")
+        return self
 
 
 class StationSelection(BaseModel):

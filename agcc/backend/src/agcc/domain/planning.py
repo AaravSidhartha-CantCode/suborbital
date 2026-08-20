@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from agcc.domain.common import _require_utc, _validate_id
 from agcc.domain.enums import ContactCommitment, PassStatus, RejectionCode
@@ -17,7 +17,7 @@ class CandidatePass(BaseModel):
     model_config = {"frozen": True}
 
     pass_id: str = Field(description="Unique pass ID (prefix: pass_); deterministic hash-derived")
-    scenario_id: str = ""
+    scenario_id: str
     satellite_id: str
     station_id: str
 
@@ -39,8 +39,8 @@ class CandidatePass(BaseModel):
     minimum_elevation_deg: float = Field(ge=0.0, le=90.0)
 
     # Versioning
-    orbit_model_version: str = ""
-    station_catalog_version: str = ""
+    orbit_model_version: str
+    station_catalog_version: str
 
     status: PassStatus = PassStatus.CANDIDATE
 
@@ -54,19 +54,91 @@ class CandidatePass(BaseModel):
     def _check_times(cls, v: Any) -> Any:
         return _require_utc(v)
 
+    @model_validator(mode="after")
+    def _check_pass_invariants(self) -> CandidatePass:
+        """Enforce all CandidatePass timing and metadata invariants."""
+        # Timing order
+        if not (self.start_at < self.peak_at < self.end_at):
+            raise ValueError(
+                f"Timing order violated: start_at ({self.start_at}) < "
+                f"peak_at ({self.peak_at}) < end_at ({self.end_at}) required"
+            )
+        # Positive duration
+        if self.duration_s <= 0:
+            raise ValueError(f"duration_s must be > 0, got {self.duration_s}")
+        # Duration consistency with start/end
+        computed_duration = (self.end_at - self.start_at).total_seconds()
+        if abs(self.duration_s - computed_duration) > 1.0:
+            raise ValueError(
+                f"duration_s ({self.duration_s}) inconsistent with "
+                f"end_at - start_at ({computed_duration:.3f}s); allowed tolerance 1.0s"
+            )
+        # Usable duration
+        if self.usable_duration_s <= 0:
+            raise ValueError(f"usable_duration_s must be > 0, got {self.usable_duration_s}")
+        if self.usable_duration_s > self.duration_s:
+            raise ValueError(
+                f"usable_duration_s ({self.usable_duration_s}) must be <= "
+                f"duration_s ({self.duration_s})"
+            )
+        # Elevation geometry
+        if self.max_elevation_deg < self.minimum_elevation_deg:
+            raise ValueError(
+                f"max_elevation_deg ({self.max_elevation_deg}) must be >= "
+                f"minimum_elevation_deg ({self.minimum_elevation_deg})"
+            )
+        # ID / version fields
+        if not self.scenario_id:
+            raise ValueError("scenario_id must be non-empty")
+        if not self.satellite_id.startswith("sat_"):
+            raise ValueError(
+                f"satellite_id must start with 'sat_', got '{self.satellite_id}'"
+            )
+        if not self.station_id.startswith("station_"):
+            raise ValueError(
+                f"station_id must start with 'station_', got '{self.station_id}'"
+            )
+        if not self.orbit_model_version:
+            raise ValueError("orbit_model_version must be non-empty")
+        if not self.station_catalog_version:
+            raise ValueError("station_catalog_version must be non-empty")
+        return self
+
 
 class CapacityEstimate(BaseModel):
-    """Estimated physical transfer capacity for a pass."""
+    """Estimated physical transfer capacity for a pass (Task 08)."""
 
     model_config = {"frozen": True}
 
     capacity_id: str = Field(description="Unique capacity ID (prefix: capacity_)")
     pass_id: str
-    estimated_rate_mbps: float = Field(ge=0.0, description="Estimated transfer rate in Mbit/s")
-    estimated_capacity_mb: float = Field(
-        ge=0.0, description="Estimated transferable volume in decimal MB"
+
+    # Rate limits
+    base_rate_mbps: float = Field(ge=0.0, description="min(satellite, station) rate in Mbit/s")
+
+    # Capacity summary
+    usable_capacity_mb: float = Field(ge=0.0, description="Total usable capacity in decimal MB")
+    average_effective_rate_mbps: float = Field(
+        ge=0.0, description="Average effective rate across samples in Mbit/s"
     )
-    duration_seconds: float = Field(ge=0.0)
+    peak_effective_rate_mbps: float = Field(
+        ge=0.0, description="Peak per-sample effective rate in Mbit/s"
+    )
+
+    # Data quality flag
+    weather_data_quality: str = Field(
+        description="Source quality of weather data used (verified/stale/unavailable/assumed)"
+    )
+
+    # Versioning / assumptions
+    model_version: str = Field(description="Capacity model version identifier")
+    assumptions: list[str] = Field(
+        default_factory=list,
+        description="List of assumption labels applied during estimation",
+    )
+
+    # Integration metadata
+    sample_count: int = Field(ge=0, description="Number of 10-second integration samples")
 
     @field_validator("capacity_id", mode="before")
     @classmethod

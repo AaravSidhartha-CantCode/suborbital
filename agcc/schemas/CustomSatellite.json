@@ -1,19 +1,45 @@
 {
   "$defs": {
+    "Band": {
+      "enum": [
+        "S",
+        "X",
+        "Ka",
+        "UHF",
+        "VHF"
+      ],
+      "title": "Band",
+      "type": "string"
+    },
     "CustomCircularOrbit": {
-      "description": "Defines a custom circular LEO orbit.",
+      "description": "Canonical circular-LEO orbit representation.",
       "properties": {
         "altitude_km": {
-          "description": "Orbital altitude in kilometers",
-          "exclusiveMinimum": 0.0,
+          "description": "Orbital altitude in kilometers (200–2000)",
+          "maximum": 2000.0,
+          "minimum": 200.0,
           "title": "Altitude Km",
           "type": "number"
         },
         "argument_of_perigee_deg": {
-          "description": "Argument of perigee in degrees (0 for circular)",
-          "exclusiveMaximum": 360.0,
-          "minimum": 0.0,
+          "default": 0.0,
           "title": "Argument Of Perigee Deg",
+          "type": "number"
+        },
+        "direction": {
+          "default": "",
+          "description": "PROGRADE or RETROGRADE (derived)",
+          "title": "Direction",
+          "type": "string"
+        },
+        "earth_radius_km": {
+          "default": 6378.137,
+          "title": "Earth Radius Km",
+          "type": "number"
+        },
+        "eccentricity": {
+          "default": 0.0,
+          "title": "Eccentricity",
           "type": "number"
         },
         "epoch": {
@@ -33,18 +59,23 @@
           "$ref": "#/$defs/OrbitInputMode",
           "default": "custom_circular"
         },
+        "mu_km3_s2": {
+          "default": 398600.4418,
+          "title": "Mu Km3 S2",
+          "type": "number"
+        },
+        "phase_deg": {
+          "description": "Satellite phase (true anomaly) in degrees [0,360)",
+          "exclusiveMaximum": 360.0,
+          "minimum": 0.0,
+          "title": "Phase Deg",
+          "type": "number"
+        },
         "raan_deg": {
-          "description": "Right ascension of ascending node in degrees",
+          "description": "Right ascension of ascending node in degrees [0,360)",
           "exclusiveMaximum": 360.0,
           "minimum": 0.0,
           "title": "Raan Deg",
-          "type": "number"
-        },
-        "true_anomaly_deg": {
-          "description": "True anomaly at epoch in degrees",
-          "exclusiveMaximum": 360.0,
-          "minimum": 0.0,
-          "title": "True Anomaly Deg",
           "type": "number"
         }
       },
@@ -52,8 +83,7 @@
         "altitude_km",
         "inclination_deg",
         "raan_deg",
-        "argument_of_perigee_deg",
-        "true_anomaly_deg",
+        "phase_deg",
         "epoch"
       ],
       "title": "CustomCircularOrbit",
@@ -135,21 +165,22 @@
       "type": "object"
     },
     "SatelliteCommunications": {
-      "description": "Communication system parameters for the satellite.",
+      "description": "Communication system parameters for the satellite (Task 08 amendment).",
       "properties": {
-        "bands": {
-          "description": "Supported frequency bands",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "title": "Bands",
-          "type": "array"
+        "band": {
+          "$ref": "#/$defs/Band",
+          "description": "Downlink frequency band"
         },
-        "downlink_rate_mbps": {
-          "description": "Nominal downlink rate in Mbit/s",
+        "carrier_frequency_ghz": {
+          "description": "Carrier frequency in GHz",
           "exclusiveMinimum": 0.0,
-          "title": "Downlink Rate Mbps",
+          "title": "Carrier Frequency Ghz",
+          "type": "number"
+        },
+        "max_downlink_rate_mbps": {
+          "description": "Maximum downlink rate in Mbit/s",
+          "exclusiveMinimum": 0.0,
+          "title": "Max Downlink Rate Mbps",
           "type": "number"
         },
         "min_elevation_deg": {
@@ -158,11 +189,20 @@
           "minimum": 0.0,
           "title": "Min Elevation Deg",
           "type": "number"
+        },
+        "protocol_efficiency": {
+          "description": "Protocol efficiency factor in (0, 1]",
+          "exclusiveMinimum": 0.0,
+          "maximum": 1.0,
+          "title": "Protocol Efficiency",
+          "type": "number"
         }
       },
       "required": [
-        "downlink_rate_mbps",
-        "bands",
+        "band",
+        "carrier_frequency_ghz",
+        "max_downlink_rate_mbps",
+        "protocol_efficiency",
         "min_elevation_deg"
       ],
       "title": "SatelliteCommunications",
@@ -172,6 +212,7 @@
       "enum": [
         "manual",
         "catalog",
+        "fixture",
         "forecast",
         "measured",
         "derived",

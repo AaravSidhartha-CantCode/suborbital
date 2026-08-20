@@ -8,7 +8,20 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from agcc.domain.common import Provenance, _require_utc, _validate_id
-from agcc.domain.enums import OrbitInputMode
+from agcc.domain.enums import Band, OrbitInputMode
+
+# ---------------------------------------------------------------------------
+# Band ↔ carrier-frequency validation table (fixed; not user-configurable)
+# ---------------------------------------------------------------------------
+
+# Maps Band → (min_ghz, max_ghz) inclusive range.
+BAND_FREQUENCY_RANGES_GHZ: dict[Band, tuple[float, float]] = {
+    Band.VHF: (0.030, 0.300),
+    Band.UHF: (0.300, 1.000),
+    Band.S:   (2.000, 4.000),
+    Band.X:   (8.000, 12.000),
+    Band.KA:  (26.500, 40.000),
+}
 
 # Fixed physical constants — not user-configurable
 _ECCENTRICITY: float = 0.0
@@ -58,15 +71,29 @@ class CustomCircularOrbit(BaseModel):
 
 
 class SatelliteCommunications(BaseModel):
-    """Communication system parameters for the satellite."""
+    """Communication system parameters for the satellite (Task 08 amendment)."""
 
     model_config = {"frozen": True}
 
-    downlink_rate_mbps: float = Field(gt=0.0, description="Nominal downlink rate in Mbit/s")
-    bands: list[str] = Field(min_length=1, description="Supported frequency bands")
+    band: Band = Field(description="Downlink frequency band")
+    carrier_frequency_ghz: float = Field(gt=0.0, description="Carrier frequency in GHz")
+    max_downlink_rate_mbps: float = Field(gt=0.0, description="Maximum downlink rate in Mbit/s")
+    protocol_efficiency: float = Field(
+        gt=0.0, le=1.0, description="Protocol efficiency factor in (0, 1]"
+    )
     min_elevation_deg: float = Field(
         ge=0.0, le=90.0, description="Minimum elevation angle for contact in degrees"
     )
+
+    @model_validator(mode="after")
+    def _check_frequency_in_band_range(self) -> "SatelliteCommunications":
+        lo, hi = BAND_FREQUENCY_RANGES_GHZ[self.band]
+        if not (lo <= self.carrier_frequency_ghz <= hi):
+            raise ValueError(
+                f"carrier_frequency_ghz {self.carrier_frequency_ghz} GHz is outside the "
+                f"valid range [{lo}, {hi}] GHz for band {self.band.value}"
+            )
+        return self
 
 
 class CustomSatellite(BaseModel):

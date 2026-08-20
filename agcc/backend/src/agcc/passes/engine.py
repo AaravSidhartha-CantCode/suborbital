@@ -21,8 +21,8 @@ from typing import Sequence
 
 from agcc.domain.orbit import CustomCircularOrbit
 from agcc.domain.planning import CandidatePass
-from agcc.domain.stations import GroundStation
-from agcc.orbit.propagator import CircularKeplerPropagator, _propagate_one
+from agcc.domain.stations import GroundStation, StationCatalog
+from agcc.orbit.propagator import CircularKeplerPropagator, OrbitPropagator
 from agcc.passes.geometry import (
     azimuth_deg,
     elevation_deg,
@@ -62,8 +62,9 @@ def _elev_at(
     station: GroundStation,
     sta_ecef: tuple[float, float, float],
     at: datetime,
+    propagator: OrbitPropagator,
 ) -> float:
-    _, _, pos_ecef, _, _, _ = _propagate_one(orbit, at)
+    pos_ecef = propagator.state_at(orbit, at).pos_ecef_km
     return elevation_deg(pos_ecef, sta_ecef, station.latitude_deg, station.longitude_deg)
 
 
@@ -78,6 +79,7 @@ def _bisect_crossing(
     t_lo: datetime,
     t_hi: datetime,
     min_elev: float,
+    propagator: OrbitPropagator,
 ) -> datetime:
     """Bisect to find the time when elevation crosses min_elev.
 
@@ -86,12 +88,12 @@ def _bisect_crossing(
     """
     lo_ts = t_lo.timestamp()
     hi_ts = t_hi.timestamp()
-    f_lo = _elev_at(orbit, station, sta_ecef, t_lo) - min_elev
+    f_lo = _elev_at(orbit, station, sta_ecef, t_lo, propagator) - min_elev
 
     while hi_ts - lo_ts > _BISECT_TOL_S:
         mid_ts = (lo_ts + hi_ts) / 2.0
         mid_t = datetime.fromtimestamp(mid_ts, tz=timezone.utc)
-        f_mid = _elev_at(orbit, station, sta_ecef, mid_t) - min_elev
+        f_mid = _elev_at(orbit, station, sta_ecef, mid_t, propagator) - min_elev
         if f_lo * f_mid <= 0.0:
             hi_ts = mid_ts
         else:
@@ -111,15 +113,16 @@ def _find_peak(
     sta_ecef: tuple[float, float, float],
     rise: datetime,
     set_: datetime,
+    propagator: OrbitPropagator,
 ) -> tuple[datetime, float]:
     """Return (peak_time, peak_elevation_deg) by 1-second sampling."""
     best_t = rise
-    best_el = _elev_at(orbit, station, sta_ecef, rise)
+    best_el = _elev_at(orbit, station, sta_ecef, rise, propagator)
 
     t = rise
     end_ts = set_.timestamp()
     while t.timestamp() <= end_ts:
-        el = _elev_at(orbit, station, sta_ecef, t)
+        el = _elev_at(orbit, station, sta_ecef, t, propagator)
         if el > best_el:
             best_el = el
             best_t = t
@@ -141,6 +144,7 @@ def _compute_passes_for_station(
     station_catalog_version: str,
     scenario_id: str,
     satellite_id: str,
+    propagator: OrbitPropagator,
 ) -> list[CandidatePass]:
     sta_ecef = station_ecef_km(
         station.latitude_deg,
@@ -154,12 +158,12 @@ def _compute_passes_for_station(
     t = start
     end_ts = end.timestamp()
     while t.timestamp() <= end_ts:
-        el = _elev_at(orbit, station, sta_ecef, t)
+        el = _elev_at(orbit, station, sta_ecef, t, propagator)
         samples.append((t, el))
         t = t + timedelta(seconds=_COARSE_STEP_S)
     # include end exactly if not already there
     if samples and samples[-1][0] < end:
-        el = _elev_at(orbit, station, sta_ecef, end)
+        el = _elev_at(orbit, station, sta_ecef, end, propagator)
         samples.append((end, el))
 
     # --- Step 2 & 3: detect threshold crossings, bisect ---
@@ -175,7 +179,7 @@ def _compute_passes_for_station(
 
         if not in_pass and not above0 and above1:
             # Rising crossing
-            rise_time = _bisect_crossing(orbit, station, sta_ecef, t0, t1, min_elev)
+            rise_time = _bisect_crossing(orbit, station, sta_ecef, t0, t1, min_elev, propagator)
             in_pass = True
         elif not in_pass and above0 and i == 0:
             # Starts already above threshold
@@ -183,12 +187,12 @@ def _compute_passes_for_station(
             in_pass = True
         elif in_pass and above0 and not above1:
             # Setting crossing
-            set_time = _bisect_crossing(orbit, station, sta_ecef, t0, t1, min_elev)
+            set_time = _bisect_crossing(orbit, station, sta_ecef, t0, t1, min_elev, propagator)
             if rise_time is not None:
                 cp = _build_pass(
                     orbit, station, sta_ecef, rise_time, set_time,
                     orbit_model_version, station_catalog_version, scenario_id,
-                    satellite_id,
+                    satellite_id, propagator,
                 )
                 if cp is not None:
                     passes.append(cp)
@@ -201,7 +205,7 @@ def _compute_passes_for_station(
         cp = _build_pass(
             orbit, station, sta_ecef, rise_time, set_time,
             orbit_model_version, station_catalog_version, scenario_id,
-            satellite_id,
+            satellite_id, propagator,
         )
         if cp is not None:
             passes.append(cp)
@@ -219,6 +223,7 @@ def _build_pass(
     station_catalog_version: str,
     scenario_id: str,
     satellite_id: str,
+    propagator: OrbitPropagator,
 ) -> CandidatePass | None:
     """Build a CandidatePass; returns None if usable_duration_s <= 0."""
     duration_s = (set_ - rise).total_seconds()
@@ -227,12 +232,12 @@ def _build_pass(
         return None
 
     # Peak
-    peak_t, peak_el = _find_peak(orbit, station, sta_ecef, rise, set_)
+    peak_t, peak_el = _find_peak(orbit, station, sta_ecef, rise, set_, propagator)
 
     # Geometry at key times
-    _, _, pos_start, _, _, _ = _propagate_one(orbit, rise)
-    _, _, pos_peak, _, _, _ = _propagate_one(orbit, peak_t)
-    _, _, pos_end, _, _, _ = _propagate_one(orbit, set_)
+    pos_start = propagator.state_at(orbit, rise).pos_ecef_km
+    pos_peak = propagator.state_at(orbit, peak_t).pos_ecef_km
+    pos_end = propagator.state_at(orbit, set_).pos_ecef_km
 
     az_start = azimuth_deg(pos_start, sta_ecef, station.latitude_deg, station.longitude_deg)
     az_peak = azimuth_deg(pos_peak, sta_ecef, station.latitude_deg, station.longitude_deg)
@@ -272,11 +277,11 @@ class PassEngine:
 
     def __init__(
         self,
-        propagator: CircularKeplerPropagator | None = None,
+        propagator: OrbitPropagator | None = None,
         screener: StationScreener | None = None,
         orbit_model_version: str = _ORBIT_MODEL_VERSION,
     ) -> None:
-        self._propagator = propagator or CircularKeplerPropagator()
+        self._propagator: OrbitPropagator = propagator or CircularKeplerPropagator()
         self._screener: StationScreener = screener or DefaultStationScreener()
         self._orbit_model_version = orbit_model_version
 
@@ -287,13 +292,47 @@ class PassEngine:
         stations: Sequence[GroundStation],
         horizon_start: datetime,
         horizon_end: datetime,
-        scenario_id: str = "",
-        station_catalog_version: str = "",
+        scenario_id: str,
+        station_catalog_version: str,
     ) -> list[CandidatePass]:
         """Return sorted candidate passes over all screened stations.
 
         Sorted by start_at then station_id.
+
+        Raises ValueError for:
+        - Naive (timezone-unaware) horizon datetimes
+        - horizon_end <= horizon_start
+        - satellite_id not starting with "sat_"
+        - scenario_id not starting with "scenario_"
+        - Empty station_catalog_version
+        - Duplicate station IDs
         """
+        # Validate timezone awareness
+        if horizon_start.tzinfo is None:
+            raise ValueError("horizon_start must be timezone-aware")
+        if horizon_end.tzinfo is None:
+            raise ValueError("horizon_end must be timezone-aware")
+        # Validate horizon order
+        if horizon_end <= horizon_start:
+            raise ValueError("horizon_end must be after horizon_start")
+        # Validate satellite_id
+        if not satellite_id.startswith("sat_"):
+            raise ValueError(f"satellite_id must start with 'sat_', got '{satellite_id}'")
+        # Validate scenario_id
+        if not scenario_id.startswith("scenario_"):
+            raise ValueError(f"scenario_id must start with 'scenario_', got '{scenario_id}'")
+        # Validate station_catalog_version
+        if not station_catalog_version:
+            raise ValueError("station_catalog_version must be non-empty")
+        # Validate unique station IDs
+        station_ids = [s.station_id for s in stations]
+        if len(station_ids) != len(set(station_ids)):
+            raise ValueError("Duplicate station IDs in stations list")
+
+        # Normalize to UTC
+        start = horizon_start.astimezone(timezone.utc)
+        end = horizon_end.astimezone(timezone.utc)
+
         screened = self._screener.screen(orbit, list(stations))
 
         all_passes: list[CandidatePass] = []
@@ -301,15 +340,40 @@ class PassEngine:
             station_passes = _compute_passes_for_station(
                 orbit=orbit,
                 station=station,
-                start=horizon_start,
-                end=horizon_end,
+                start=start,
+                end=end,
                 orbit_model_version=self._orbit_model_version,
                 station_catalog_version=station_catalog_version,
                 scenario_id=scenario_id,
                 satellite_id=satellite_id,
+                propagator=self._propagator,
             )
             all_passes.extend(station_passes)
 
         # Sort deterministically: start_at then station_id
         all_passes.sort(key=lambda p: (p.start_at, p.station_id))
         return all_passes
+
+    def compute_passes_from_catalog(
+        self,
+        orbit: CustomCircularOrbit,
+        satellite_id: str,
+        catalog: StationCatalog,
+        selected_stations: Sequence[GroundStation],
+        horizon_start: datetime,
+        horizon_end: datetime,
+        scenario_id: str,
+    ) -> list[CandidatePass]:
+        """Return sorted candidate passes using station_catalog_version from catalog.
+
+        Delegates to compute_passes() with station_catalog_version=catalog.catalog_version.
+        """
+        return self.compute_passes(
+            orbit=orbit,
+            satellite_id=satellite_id,
+            stations=selected_stations,
+            horizon_start=horizon_start,
+            horizon_end=horizon_end,
+            scenario_id=scenario_id,
+            station_catalog_version=catalog.catalog_version,
+        )

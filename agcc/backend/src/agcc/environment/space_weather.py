@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from agcc.domain.environment import SpaceWeatherSnapshot
+from agcc.domain.environment import SpaceWeatherSnapshot, canonical_payload_hash
 from agcc.domain.errors import DomainError, external_data_unavailable
 
 _SPACE_WEATHER_LIVE_NOT_CONFIGURED = "SPACE_WEATHER_LIVE_NOT_CONFIGURED"
@@ -37,6 +37,18 @@ class SpaceWeatherProvider(Protocol):
         ...
 
 
+def _verify_space_weather_hash(record: dict[str, Any]) -> None:
+    """Verify that record['raw_payload_hash'] matches canonical_payload_hash(record)."""
+    stored = record.get("raw_payload_hash", "")
+    expected = canonical_payload_hash(record)
+    if stored != expected:
+        snapshot_id = record.get("snapshot_id", "<unknown>")
+        raise ValueError(
+            f"raw_payload_hash mismatch for space-weather snapshot '{snapshot_id}': "
+            f"stored='{stored}', expected='{expected}'"
+        )
+
+
 class FixtureSpaceWeatherProvider:
     """Returns deterministic fixture snapshots from a JSON file."""
 
@@ -51,6 +63,7 @@ class FixtureSpaceWeatherProvider:
     ) -> list[SpaceWeatherSnapshot]:
         result: list[SpaceWeatherSnapshot] = []
         for raw in self._data:
+            _verify_space_weather_hash(raw)
             snap = SpaceWeatherSnapshot.model_validate(raw)
             if snap.valid_until <= start or snap.valid_from >= end:
                 continue
@@ -73,6 +86,7 @@ class RecordedSpaceWeatherProvider:
     ) -> list[SpaceWeatherSnapshot]:
         result: list[SpaceWeatherSnapshot] = []
         for raw in self._data:
+            _verify_space_weather_hash(raw)
             snap = SpaceWeatherSnapshot.model_validate(raw)
             if snap.valid_until <= start or snap.valid_from >= end:
                 continue
@@ -85,13 +99,13 @@ class NotConfiguredLiveSpaceWeatherProvider:
     """Placeholder that always raises SpaceWeatherUnavailable.
 
     Required configuration (not supplied here):
-      - SPACE_WEATHER_API_URL: endpoint for live space-weather data
-      - SPACE_WEATHER_API_KEY: API key for authentication
+      - AGCC_SPACE_WEATHER_API_URL: endpoint for live space-weather data
+      - AGCC_SPACE_WEATHER_API_KEY: API key for authentication
     """
 
     REQUIRED_CONFIG_NAMES: tuple[str, ...] = (
-        "SPACE_WEATHER_API_URL",
-        "SPACE_WEATHER_API_KEY",
+        "AGCC_SPACE_WEATHER_API_URL",
+        "AGCC_SPACE_WEATHER_API_KEY",
     )
 
     async def snapshots_for(

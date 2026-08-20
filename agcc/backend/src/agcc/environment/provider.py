@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from agcc.domain.environment import WeatherSnapshot, payload_hash
+from agcc.domain.environment import WeatherSnapshot, canonical_payload_hash, payload_hash
 from agcc.domain.errors import DomainError, external_data_unavailable
 from agcc.domain.stations import GroundStation
 
@@ -71,6 +71,7 @@ class FixtureWeatherProvider:
         raw_list = self._data.get(station.station_id, [])
         result: list[WeatherSnapshot] = []
         for raw in raw_list:
+            _verify_weather_hash(raw)
             snap = WeatherSnapshot.model_validate(raw)
             if snap.valid_until <= start or snap.valid_from >= end:
                 continue
@@ -105,12 +106,32 @@ class RecordedWeatherProvider:
         raw_list = self._data.get(station.station_id, [])
         result: list[WeatherSnapshot] = []
         for raw in raw_list:
+            _verify_weather_hash(raw)
             snap = WeatherSnapshot.model_validate(raw)
             if snap.valid_until <= start or snap.valid_from >= end:
                 continue
             result.append(snap)
         result.sort(key=lambda s: s.valid_from)
         return result
+
+
+# ---------------------------------------------------------------------------
+# Hash verification helper
+# ---------------------------------------------------------------------------
+
+def _verify_weather_hash(record: dict[str, Any]) -> None:
+    """Verify that record['raw_payload_hash'] matches canonical_payload_hash(record).
+
+    Raises ValueError on mismatch.
+    """
+    stored = record.get("raw_payload_hash", "")
+    expected = canonical_payload_hash(record)
+    if stored != expected:
+        snapshot_id = record.get("snapshot_id", "<unknown>")
+        raise ValueError(
+            f"raw_payload_hash mismatch for snapshot '{snapshot_id}': "
+            f"stored='{stored}', expected='{expected}'"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +149,7 @@ class NotConfiguredLiveWeatherProvider:
     """
 
     # Names of the required configuration keys — exposed for documentation
-    REQUIRED_CONFIG_NAMES: tuple[str, ...] = ("WEATHER_API_URL", "WEATHER_API_KEY")
+    REQUIRED_CONFIG_NAMES: tuple[str, ...] = ("AGCC_WEATHER_API_URL", "AGCC_WEATHER_API_KEY")
 
     async def snapshots_for(
         self,

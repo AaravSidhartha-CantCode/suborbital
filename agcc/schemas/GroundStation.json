@@ -1,84 +1,45 @@
 {
   "$defs": {
-    "Provenance": {
-      "description": "Records origin and currency of externally derived data.",
+    "Band": {
+      "enum": [
+        "S",
+        "X",
+        "Ka",
+        "UHF",
+        "VHF"
+      ],
+      "title": "Band",
+      "type": "string"
+    },
+    "CostModel": {
+      "enum": [
+        "none",
+        "per_minute",
+        "per_contact_plus_minute"
+      ],
+      "title": "CostModel",
+      "type": "string"
+    },
+    "FieldProvenance": {
+      "description": "Field-level provenance: maps field names to source/assumption notes.",
       "properties": {
-        "assumption_fields": {
+        "assumptions": {
           "items": {
             "type": "string"
           },
-          "title": "Assumption Fields",
+          "title": "Assumptions",
           "type": "array"
         },
-        "fetched_at": {
-          "format": "date-time",
-          "title": "Fetched At",
-          "type": "string"
-        },
-        "observed_at": {
-          "anyOf": [
-            {
-              "format": "date-time",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Observed At"
-        },
-        "source_name": {
-          "title": "Source Name",
-          "type": "string"
-        },
-        "source_type": {
-          "$ref": "#/$defs/SourceType"
-        },
-        "source_uri": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Source Uri"
-        },
-        "source_version": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Source Version"
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
         }
       },
-      "required": [
-        "source_type",
-        "source_name",
-        "fetched_at"
-      ],
-      "title": "Provenance",
+      "title": "FieldProvenance",
       "type": "object"
-    },
-    "SourceType": {
-      "enum": [
-        "manual",
-        "catalog",
-        "forecast",
-        "measured",
-        "derived",
-        "not_configured"
-      ],
-      "title": "SourceType",
-      "type": "string"
     }
   },
   "description": "A ground station capable of receiving satellite downlink.",
@@ -89,11 +50,35 @@
       "title": "Altitude M",
       "type": "number"
     },
-    "cost_per_minute_usd": {
-      "description": "Cost per contact minute in USD",
+    "booking_cost": {
+      "description": "Fixed per-contact booking cost",
       "minimum": 0.0,
-      "title": "Cost Per Minute Usd",
+      "title": "Booking Cost",
       "type": "number"
+    },
+    "cost_model": {
+      "$ref": "#/$defs/CostModel",
+      "default": "none"
+    },
+    "cost_per_minute": {
+      "description": "Variable cost per contact minute",
+      "minimum": 0.0,
+      "title": "Cost Per Minute",
+      "type": "number"
+    },
+    "currency": {
+      "default": "USD",
+      "minLength": 1,
+      "title": "Currency",
+      "type": "string"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "field_provenance": {
+      "$ref": "#/$defs/FieldProvenance"
     },
     "latitude_deg": {
       "description": "Geodetic latitude in degrees",
@@ -104,22 +89,30 @@
     },
     "longitude_deg": {
       "description": "Geodetic longitude in degrees",
-      "maximum": 180.0,
+      "exclusiveMaximum": 180.0,
       "minimum": -180.0,
       "title": "Longitude Deg",
       "type": "number"
     },
     "max_downlink_rate_mbps": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
       "description": "Station maximum downlink rate in Mbit/s",
-      "exclusiveMinimum": 0.0,
-      "title": "Max Downlink Rate Mbps",
-      "type": "number"
+      "title": "Max Downlink Rate Mbps"
     },
-    "min_elevation_deg": {
+    "minimum_elevation_deg": {
       "description": "Station minimum elevation mask in degrees",
       "maximum": 90.0,
       "minimum": 0.0,
-      "title": "Min Elevation Deg",
+      "title": "Minimum Elevation Deg",
       "type": "number"
     },
     "name": {
@@ -127,8 +120,25 @@
       "title": "Name",
       "type": "string"
     },
-    "provenance": {
-      "$ref": "#/$defs/Provenance"
+    "provider_id": {
+      "description": "Identifier of the station provider",
+      "minLength": 1,
+      "title": "Provider Id",
+      "type": "string"
+    },
+    "setup_s": {
+      "description": "Setup time in seconds before contact",
+      "minimum": 0,
+      "title": "Setup S",
+      "type": "integer"
+    },
+    "simultaneous_contacts": {
+      "default": 1,
+      "description": "Fixed at 1 for MVP",
+      "maximum": 1,
+      "minimum": 1,
+      "title": "Simultaneous Contacts",
+      "type": "integer"
     },
     "station_id": {
       "description": "Unique station ID (prefix: station_)",
@@ -136,25 +146,40 @@
       "type": "string"
     },
     "supported_bands": {
-      "items": {
-        "type": "string"
-      },
-      "minItems": 1,
-      "title": "Supported Bands",
-      "type": "array"
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Band"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Supported Bands"
+    },
+    "teardown_s": {
+      "description": "Teardown time in seconds after contact",
+      "minimum": 0,
+      "title": "Teardown S",
+      "type": "integer"
     }
   },
   "required": [
     "station_id",
     "name",
+    "provider_id",
     "latitude_deg",
     "longitude_deg",
     "altitude_m",
-    "supported_bands",
-    "min_elevation_deg",
-    "max_downlink_rate_mbps",
-    "cost_per_minute_usd",
-    "provenance"
+    "minimum_elevation_deg",
+    "setup_s",
+    "teardown_s",
+    "booking_cost",
+    "cost_per_minute"
   ],
   "title": "GroundStation",
   "type": "object"

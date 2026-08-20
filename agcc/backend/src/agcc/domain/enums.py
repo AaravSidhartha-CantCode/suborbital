@@ -39,13 +39,19 @@ class MissionStatus(str, Enum):
 
 
 class EventType(str, Enum):
+    SIMULATION_STARTED = "simulation_started"
+    SIMULATION_PAUSED = "simulation_paused"
     CONTACT_STARTED = "contact_started"
     CONTACT_ENDED = "contact_ended"
+    RATE_UPDATED = "rate_updated"
+    FRAGMENT_STARTED = "fragment_started"
+    FRAGMENT_PARTIAL = "fragment_partial"
     FRAGMENT_DELIVERED = "fragment_delivered"
+    SHORTFALL_PREDICTED = "shortfall_predicted"
+    MISSION_COMPLETED = "mission_completed"
+    MISSION_DEADLINE_MISSED = "mission_deadline_missed"
     ANOMALY_DETECTED = "anomaly_detected"
     PLAN_REVISED = "plan_revised"
-    SIMULATION_STARTED = "simulation_started"
-    SIMULATION_ENDED = "simulation_ended"
 
 
 class AnomalyType(str, Enum):
@@ -66,6 +72,7 @@ class ProposalStatus(str, Enum):
 class SourceType(str, Enum):
     MANUAL = "manual"
     CATALOG = "catalog"
+    FIXTURE = "fixture"
     FORECAST = "forecast"
     MEASURED = "measured"
     DERIVED = "derived"

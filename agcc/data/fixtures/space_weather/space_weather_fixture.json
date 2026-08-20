@@ -1,5 +1,5 @@
 {
-  "_comment": "AGCC space-weather fixture — deterministic, covers 2024-03-20 12:00Z to 2024-03-21 12:00Z",
+  "_comment": "AGCC space-weather fixture \u2014 deterministic, covers 2024-03-20 12:00Z to 2024-03-21 12:00Z",
   "snapshots": [
     {
       "snapshot_id": "event_sw_20240320_00",
@@ -16,7 +16,8 @@
         "source_type": "derived",
         "source_name": "agcc_fixture",
         "fetched_at": "2024-03-20T12:00:00Z"
-      }
+      },
+      "raw_payload_hash": "97d0a87ad43069803cb242a4d9958a0972fcfafd2ece7079823683492e532d76"
     }
   ]
 }

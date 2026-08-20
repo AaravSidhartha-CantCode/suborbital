@@ -15,7 +15,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "771370312dd377dc58afccab6f7c6a66e5caf99f634dfeb541e90380cae2ba09",
+        "raw_payload_hash": "b2ae7cdd21513001cc2be6c7be56acc5098cff2d479fc2279b13f09b41f1f448",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -36,7 +36,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "4b4932f93b2a98b3a0060dbb2726c1e00ade0589705e6abd51d37569b0e435df",
+        "raw_payload_hash": "701a935c5f2200c3e32e5b6d10ca6f3454e98949c431128e2fc1a7fd576b568d",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -57,7 +57,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "f7295de47c29576ed57c7be7235d7c578e8c681330fe350469df0bdf6d2a4bf0",
+        "raw_payload_hash": "65dbedeb6bb83d3c92964577da9472b867bec77692a1429ceda077dac6dd469c",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -78,7 +78,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "285df9872f424de8eef4b9f509b61033deeb0371c677d946037c75566698367b",
+        "raw_payload_hash": "53bfa89b707653c95437eb1e11fd8975aac288f9ed1663cb4a6011c530949e08",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -99,7 +99,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "3db670bf2428dee8b112df3fcba3d3c2860ed686435f089f989e589d6c695e79",
+        "raw_payload_hash": "24aa75b95092b1a495782c5eb5d9b2e9c95d5146628fe5815d9edb6a2251a8d1",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -120,7 +120,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "aa93fde4996c357aea785918a6f50e45216c46179f5d63e3c8f37c507c76e7dc",
+        "raw_payload_hash": "9fac42a268b97b7742b8b60a5963ef46cf45951d91fabb8aa5d4a1411e1bad70",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -143,7 +143,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "8df189e85d90ca73ac79b06a4ce09a85fb0f5f775ceee2f33280ec4317f5de0f",
+        "raw_payload_hash": "31ea76837551d9442d4e0b21a4d9c574b39be7c37842eddb5a7cb0af43e7daa9",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -164,7 +164,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "c01f0fb1a9d0ba690673e9bc17a246da03fec9f0473e66ec5e17e0c2445959b8",
+        "raw_payload_hash": "ecd983593bed19336454219fb48defdfbe6e7dfae7e819db396a7b40ac3b20ac",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -185,7 +185,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "cc7fab0b075c24311fe02de2535aa74a24e2324f407d6afe9411f02bd7b05ec1",
+        "raw_payload_hash": "4dc63f4f3fe111df20750c71e4a6c0c2ee4a3d0764e5a722d96d5664d6bd94ab",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -206,7 +206,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "a5363234e9df9d307b9f164b6a330ee94c49b7ce6e50532d560b5d15ff10804d",
+        "raw_payload_hash": "e92af62209d8073695f18e4e5219fff750143d6436ac8bbeb04dfbf575a3ac8d",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -227,7 +227,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "426bd79d7a6dd4e2223b21030c1b6a14f6ce0065e65260820569c5d6c892e9e6",
+        "raw_payload_hash": "15be80669b781eeac72439c3304c27d2e06f955b616e9b7b843bb614bde4941e",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -248,7 +248,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "2ee1a2fed1faf1f960eb1db6ae1033cd31656a66d5f134648876e85f163db58a",
+        "raw_payload_hash": "fcab93294f7b73b407406886964b682bc53a7cd11487a78e3bec0298a920d080",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -271,7 +271,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "3471fe9e2f65a5e06dc62e0d556d6ab9318045dfde50fbb941898e8676a07a4d",
+        "raw_payload_hash": "670b94f452538b264a5c428141c776ff8a88ffaa409686cffcdd776eddcb32b0",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -292,7 +292,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "3f2fa392f70a3889d37ffe633390d5cfc0caad9625592f4c185fb0d9d171718b",
+        "raw_payload_hash": "50e4d1a62b940f0d613fd96b3da401f5cae192fc1dd7f98d7358dc95b056a289",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -313,7 +313,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "3330c2782ee673cf1e2add4952c345e46732b1586fbbef35b02d89d4cfefff1a",
+        "raw_payload_hash": "46ea924515a67dc9c246b16dd39ab0c1fd9727bc4b5a362329b46d42d5eeeefe",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -334,7 +334,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "7885b32bdbbd89f32ae3174636b98818947292e03f42e4e02e57c5294f54cf05",
+        "raw_payload_hash": "a2937e396e6e808892cf49a4d5c4a92939368ba8814f85c91695ebe8382467eb",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -355,7 +355,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "9944b1f0cc08d1aa36104a8f628b5d9eb7afa80a73820abb978ca46a5d0d602d",
+        "raw_payload_hash": "896120f479972d4cfeca2fd2ae0ff75a850abc15a3d1e8ead06bef70b8ef986a",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -376,7 +376,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "651e6a670e0b356cbd4d4910011c1be2a2070b21fcf0ef879c52cd20c159ca62",
+        "raw_payload_hash": "4b09b613ea7b2545561a40dcdc1c166b170c6bad595ac39d574e84a3c3b9243f",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -399,7 +399,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "a92b0a14ec22867dafdc2e1f8c7534fd6c892886608fcfcb675e29efe0df8d52",
+        "raw_payload_hash": "44c4095efa84e62130d0ac55429913acc97e996ea6b1ce8af694636a8cbfe173",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -420,7 +420,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "0f490babab94ceaef0465bfdf40cad915ee0809507520ab6c39f50b681350880",
+        "raw_payload_hash": "7b75deafcbb5381deddf5cb4d05f6ac667b964d6e022b53d9f032364640de158",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -441,7 +441,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "24a314c3f5a053185b2e5af6cb26947d0b2c3eb638b5f8628752d4d4272465f9",
+        "raw_payload_hash": "e0b2e4de3b4ed28301579a9baae4b81714bb73f3c82b411e68bdd9c9398f0357",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -462,7 +462,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "ee9b9ff6d91d1061a32736388530fdd1065525284f9fbc0a39d53e0c5ae43f3d",
+        "raw_payload_hash": "73bc1ed51a0d62ed373759f11e6f3eb49e652135daa8da1ecd6a35162babbc37",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -483,7 +483,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "4c8f9d8a1c0630f20e3a41e6139721757723ff25b7e98eda1dce4177f6ad6732",
+        "raw_payload_hash": "65e41193947d7d723094a8724ccf774ff3ab92f71aa8127d70c94090571240f5",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -504,7 +504,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "4f15b05f0a5b5b70f8834b0f2f3c41d24f998338a5b451b5cebbde0b4af4e7b1",
+        "raw_payload_hash": "42fbff4aa888e0458c5eb7d52681308d1f0f00eb19d7496ba20cbf574a7bbe63",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -527,7 +527,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "3dd48301f8aff9a7c7693e8c46f2999b1a02a1199ff53b986cd27451e9704918",
+        "raw_payload_hash": "2eb1dddc9f8042b324373434be1c0617c0a1b034256cd48d3bbe0861c8b9209b",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -548,7 +548,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "cb163f01701196aac546568c700ea4469cc30545919a7dcb715b6727d54ada04",
+        "raw_payload_hash": "d30eecd2fe9606b30d4275bdcaf345657ffc3f5a42d60f790bb5bf1395c00de5",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -569,7 +569,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "9f86baa91b3765f10e72552db0e24248b7581ad8dcd52546cf9241e7b876e105",
+        "raw_payload_hash": "df91f92cc0d13c8a86610d0924a21e4430f37520a51d07f13ed05ace3468c10d",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -590,7 +590,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "952c7ff4bd59acd69a79e4065331829deb41970a10a0ff554b8ea0b309be6616",
+        "raw_payload_hash": "2404607248e38c9b1e837654f87cb1f241e60fee61f779bea12ed37b6b9daed4",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -611,7 +611,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "b5b454deb616b6bca066fef92bf6c58de1981130b6b984588bb3398efb33ff46",
+        "raw_payload_hash": "b391b4984a8066e0a106709ccf6e30c38aa8b15320682be7eed61cf2389c1784",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -632,7 +632,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "019e1ccacb06c573add40ec485458c7bea3a11980f6d648859d827009929e2b1",
+        "raw_payload_hash": "386a1b6f34a0e0420d1f2da1fb2a3bd84100c53543b66f1fb41e46af7994d1c1",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -655,7 +655,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "51715caef78dcde442c1637a836a524bfa26adc410f5787c5425d1e5b5e9353b",
+        "raw_payload_hash": "e5b76120060d52cec1f1f6b066ca31ba1de042063819be9ab1d816e2d397e5b3",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -676,7 +676,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "d369ae7596cdcbc841e0f1ff3dec3a694d65db06a521c23407b6733c46451fe6",
+        "raw_payload_hash": "eb04c252a97d3963dc3f5dc6717e88a952451a28c2b3e92367e5513c3eb6fd57",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -697,7 +697,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "15ba10014817a8a8e518ad6dd0e1ddf2bcc5dacf34fa663c5ec7859bf27386c0",
+        "raw_payload_hash": "e360d69d80d3fa4b678a77fdeebea45c82001c9ab27db58691fd6c0a7190c8bb",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -718,7 +718,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "33404737d3ac6ecfe216e29dafc47521ee3c1f4cbd1b5353660098b4a7e7a97b",
+        "raw_payload_hash": "a1d8ca3b0a1fe802402aaea04dc1de758b964bd31ba0b34d6d9da8aa7feea892",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -739,7 +739,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "0dc89efcde582c8e11e510dc263a81f6d8f40d1fbdf12e1438ef17357e46f854",
+        "raw_payload_hash": "c39da5bb9a9b4c880204f1e29b2a07641d05cb204d914e0bb9a5ea956139092d",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -760,7 +760,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "2be3ff6aa18e78b87ace6f0395fd6e33e9cef900aaf2d1bd8fa742a9258b2bd9",
+        "raw_payload_hash": "24bcb8aa33d7d92bded3f3bcd0bab02381b850c8e4199a6205323e6fda704d65",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -783,7 +783,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "3d7fbe76ad64cba87bb79a379440fc8869723150f9ade664497a0694f9ce4742",
+        "raw_payload_hash": "b402a21d7001eef10cacb5ff624587ac29f186c2daf17dc5ad9221b2cb099ea2",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -804,7 +804,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "5bb26f5c6d8450c8736b0d63082d99fa27e70d009027039a362633554a1b3bcc",
+        "raw_payload_hash": "ffd88eec651adef2321ac8f5573edcffecc1ec515a8c71ab057afd2d738980e1",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -825,7 +825,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "ac487fbb27f1be9892e2216aa5a943fe9976bd66c56aef7049b9374d7fed1080",
+        "raw_payload_hash": "0a706ae875809c276b039b18b2b8e34078b5b10c025579e7ded4d7b5966a3b4c",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -846,7 +846,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "39f8c144d9d124fec99248b8664ba613e34e59fcf5b7aa827cf61e586dcf6bf8",
+        "raw_payload_hash": "7e9c9e5627f4817cf07c6fc807c23bc585aa885f6d37635a1f1a0269c7e50edf",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -867,7 +867,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "2be09f3bf09d929b8e236f08852efde7c788f11547b4618624e765deb6f656cd",
+        "raw_payload_hash": "6dc31908e2900e651c9627e58bad38d5820c5972516ac32380776ae7255db49a",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -888,7 +888,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "be253ffca28c886213e3b696f7c2e29deb136ef421f274772d4286863834b53e",
+        "raw_payload_hash": "8414d42fc27003ddab14e02ae84e4d9cc182d501e22c31cd7641ca8ac578ee8e",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -911,7 +911,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "22b507644fc2d2135cbcf5d96f95b1e4035f708f56e96b23576559de461e1fdd",
+        "raw_payload_hash": "c5150d1743cbb9dd6961fca2d637b66ed97b7e2ffa73a7196f86bad1b8f03cfd",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -932,7 +932,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "17b0f0340a0031c39467e0ea575201301fbf21c9fe195d26bc012ae954179ba2",
+        "raw_payload_hash": "25cff4bb975bc72996d6f3d9034da64ac12e4f2bbc40f5973154df096488a1e2",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -953,7 +953,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "89ef2db6fb82685be40da72001d60a424ffa8ee05b005b9a924f2561a5e7330d",
+        "raw_payload_hash": "cbcfac42ac1200f0225aa0303ae3e029e749050937914bc5c6fe7bbea43baf95",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -974,7 +974,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "ce1f38e56e3b0d7ffc4a97e2007fd0aed24bd32dad95a296927c7e10e5b1e7d5",
+        "raw_payload_hash": "439a60715108b150c6746fb386c99a250d9c0efd73962082b6c79fe95b59a536",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -995,7 +995,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "59520fc75cc2cc235561bd866b3d397643fe3b5e149d921c0da2ce3943881bc5",
+        "raw_payload_hash": "0d6eb642431afba025e1d244e9c536aa97042f9e1973b8aa75ff563f6a9fa257",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1016,7 +1016,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "69c27ce9d6fcb6b6c03f7baa030dfe25519260151dbc98326747affccef95ce2",
+        "raw_payload_hash": "d4e3dfe34e9090cc1e5f49859f663ac4d91121e8212024f188fda2f3dd199528",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1039,7 +1039,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "e7e0b5aaf0c2d36a6a241555570579b7152dafda131089d3cfa0435b6dc68894",
+        "raw_payload_hash": "6d3745fcd7447b7f323a9f8fad8b6c9fb50f84f15f1469900c7a47361251d72a",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1060,7 +1060,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "0f60085ac022c9b0f1891fe5def1cf256119d4fdaab4388e8f85db7a0ecfea90",
+        "raw_payload_hash": "b50d7cb862a53b43bf706be81c66a4106b090e6cc769528c5ee0632c51c7e0f9",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1081,7 +1081,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "83679e11302dc65acaf99ecff7c235401fc12f82a2bea7566511b5ca879460bb",
+        "raw_payload_hash": "03d1315734ad276e7ed8b5457df6813c004c529a40f3168336e3b47b83ad8f9f",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1102,7 +1102,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "517d5221818ec2bcaff77409566d8db4584f279f738220ff7a27cdcda9558206",
+        "raw_payload_hash": "62a7ee4769b510d8c17248344447c5c2bb53a52623c81eb79e96ccd99fc291a0",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1123,7 +1123,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "08ab864b36680e9239bb71154645dc9b3cacf30345fd1367e0a7437826b200c6",
+        "raw_payload_hash": "6fa01862dabe8f96cac68018c0d998a4920b727723aceb46d45626e1c5ce8ab1",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1144,7 +1144,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "9d50d9404f247cdf754d4842a97978d6a846878b2cbc6785496213266ba8435e",
+        "raw_payload_hash": "c7ffb8949a630f88e2534bbfbf0428cedc54455d7a23f8f33828c00cd22e5292",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1167,7 +1167,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "398e5ed43edc5049fdadef10e5bfbf0b08f1e7d51d43f5d87a729ee0a07f9d45",
+        "raw_payload_hash": "e8e77885b255a036204d402a85a7d0682cd1aab4e0243b8686457327f8e777c4",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1188,7 +1188,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "3853786803aea782dd674d366c9dc935ca665baea185323b2508a8fef4ebc347",
+        "raw_payload_hash": "93d1d8021b03f07a38d6896079e6b6ba5f82b5aa663ead4a41e66c94108d833f",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1209,7 +1209,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "4e225fa723c09b34ceb3ae1a09dc9237938dd5f50092e48f9e51092d23f7cca7",
+        "raw_payload_hash": "b0d9cfa74a8b6e35fdf2998afc70cbc62e680b7509e5040247711969a0e9e456",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1230,7 +1230,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "c6ef5829db7be6c953fece20d4cef682a8eb20a6d54fb12996ca8c67e5820223",
+        "raw_payload_hash": "f46d55ca20a0fc20cd299e13cfa885f86afda8b708344352c605b17d7ae1d29c",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1251,7 +1251,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "34788a7b59d7c6e4ec0f1c591eb356588cf387327d0d3e38481157d4d735490c",
+        "raw_payload_hash": "e1f22fdcdcea77aea4c84c0802137ae4768541a854775346ad45692b208950ff",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1272,7 +1272,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "08588e090632073d40a6ed221d2579bd9407b6e1ce86583b89e87dcb8864a3f9",
+        "raw_payload_hash": "889137facad482ed87b56809f8cda38230ab1eac4d581bcf55a182606d738d2f",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1295,7 +1295,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "abb3991f08bbad437200bc8d3ebdabffc53bb5601593a1dc6af7ae07ff8f465d",
+        "raw_payload_hash": "d03d7285023c68a142801cedf84691debe171ca60ff2bc34507de7661d53e89f",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1316,7 +1316,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "17479644e614156e848f15c614e837778ff46d4abd090658a7ced5fc84cf77e9",
+        "raw_payload_hash": "27e2218db7e7d89b6269fb84049d6f28018af2fcb36c5734debdb16948248ecd",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1337,7 +1337,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "02644bfc72d300fdc389f3b16ce1f9837b9e03c60937cab0e51e0d8f0ca3fb2d",
+        "raw_payload_hash": "3709043575fb0b3750ec54b3c3682501fa25f77c36821ad58eb0fc6350787d8b",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1358,7 +1358,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "9c2d9e1488cffc82b187776116cc53b67c2953d6cd3f94468883fb6cfc55c3fa",
+        "raw_payload_hash": "8fbcfa878eb1a51305bfd6f8eb76499758a8aa9d5d6ed0d5c4a70160539dca6b",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1379,7 +1379,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "aed174e44f40882d77cdad684587a51a0f8b0f42fda2beb8862f986b3f74e830",
+        "raw_payload_hash": "1be5f40d4c9842bd47217070b3ae049cda6d36c81a9ddf2d28372f0b4ed637b5",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",
@@ -1400,7 +1400,7 @@
         "wind_speed_mps": 0.0,
         "source_kind": "fixture",
         "source_quality": "assumed",
-        "raw_payload_hash": "36b41e2aac74106a2da93526e664b0d95561e2ce50e1fe7a1d9a3df501b7fa99",
+        "raw_payload_hash": "e780f5b0c7fe500708ddc8a66835e39fe1dc289d9b40c4c130d2470e372ef0fb",
         "provenance": {
           "source_type": "derived",
           "source_name": "agcc_fixture",

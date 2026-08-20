@@ -1,5 +1,18 @@
 {
   "_comment": "AGCC demo catalog — fictional provider/station names, plausible synthetic values. Not real stations.",
+  "catalog_id": "catalog_demo_v1",
+  "schema_version": "1.0.0",
+  "catalog_version": "2026.08.1",
+  "generated_at": "2026-08-20T00:00:00Z",
+  "provenance": {
+    "source_type": "fixture",
+    "source_name": "AGCC demo station catalog",
+    "source_uri": null,
+    "source_version": "2026.08.1",
+    "observed_at": null,
+    "fetched_at": "2026-08-20T00:00:00Z",
+    "assumption_fields": []
+  },
   "stations": [
     {
       "station_id": "station_demo_northarctic",
@@ -20,7 +33,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -43,7 +56,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -66,7 +79,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -89,7 +102,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -112,7 +125,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -135,7 +148,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -158,7 +171,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -181,7 +194,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -204,7 +217,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -227,7 +240,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -250,7 +263,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": true
     },
@@ -273,7 +286,7 @@
       "simultaneous_contacts": 1,
       "field_provenance": {
         "sources": {},
-        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m"]
+        "assumptions": ["latitude_deg", "longitude_deg", "altitude_m", "supported_bands", "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s", "cost_model", "booking_cost", "cost_per_minute", "currency"]
       },
       "enabled": false
     }

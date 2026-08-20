@@ -37,9 +37,16 @@ _PROV = Provenance(
     source_name="test",
     fetched_at=_BASE,
 )
-_COORD_PROV = FieldProvenance(assumptions=["latitude_deg", "longitude_deg", "altitude_m"])
+_COORD_PROV = FieldProvenance(assumptions=[
+    "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
+    "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
+    "cost_model", "booking_cost", "cost_per_minute", "currency",
+])
 _FIXTURE_DIR = (
     Path(__file__).resolve().parent.parent.parent.parent / "data" / "fixtures" / "weather"
+)
+_SPACE_WEATHER_DIR = (
+    Path(__file__).resolve().parent.parent.parent.parent / "data" / "fixtures" / "space_weather"
 )
 
 
@@ -62,6 +69,15 @@ def _make_station(station_id: str = "station_demo_centraleurope") -> GroundStati
     )
 
 
+def _canonical_hash(payload: dict) -> str:
+    import hashlib
+    import json
+    copy = dict(payload)
+    copy.pop("raw_payload_hash", None)
+    serialized = json.dumps(copy, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 def _make_snap(
     station_id: str = "station_x",
     valid_from: datetime | None = None,
@@ -73,6 +89,30 @@ def _make_snap(
     vf = valid_from or _BASE
     vu = valid_until or (_BASE + timedelta(hours=1))
     oa = observed_at or vf
+
+    def _fmt(dt: datetime) -> str:
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    payload: dict = dict(
+        snapshot_id=f"event_wx_test_{idx:03d}",
+        station_id=station_id,
+        valid_from=_fmt(vf),
+        valid_until=_fmt(vu),
+        observed_at=_fmt(oa),
+        fetched_at=_fmt(_BASE),
+        precipitation_mm_per_hr=0.0,
+        temperature_c=15.0,
+        relative_humidity_pct=50.0,
+        cloud_cover_pct=0.0,
+        wind_speed_mps=2.0,
+        source_kind="fixture",
+        source_quality=quality.value,
+        provenance=dict(
+            source_type="derived",
+            source_name="test",
+            fetched_at=_fmt(_BASE),
+        ),
+    )
     return WeatherSnapshot(
         snapshot_id=f"event_wx_test_{idx:03d}",
         station_id=station_id,
@@ -87,6 +127,7 @@ def _make_snap(
         wind_speed_mps=2.0,
         source_kind=SourceKind.FIXTURE,
         source_quality=quality,
+        raw_payload_hash=_canonical_hash(payload),
         provenance=_PROV,
     )
 
@@ -99,6 +140,7 @@ def _make_pass(
     e = s + timedelta(seconds=duration_s)
     return CandidatePass(
         pass_id="pass_test0001",
+        scenario_id="scenario_envtest01",
         satellite_id="sat_x",
         station_id="station_x",
         start_at=s,
@@ -112,6 +154,8 @@ def _make_pass(
         azimuth_end_deg=180.0,
         slant_range_peak_km=900.0,
         minimum_elevation_deg=5.0,
+        orbit_model_version="circular_kepler_v1",
+        station_catalog_version="2026.08.1",
     )
 
 
@@ -264,8 +308,8 @@ class TestNotConfiguredLiveWeatherProvider:
 
     def test_exposes_required_config_names(self) -> None:
         provider = NotConfiguredLiveWeatherProvider()
-        assert "WEATHER_API_URL" in provider.REQUIRED_CONFIG_NAMES
-        assert "WEATHER_API_KEY" in provider.REQUIRED_CONFIG_NAMES
+        assert "AGCC_WEATHER_API_URL" in provider.REQUIRED_CONFIG_NAMES
+        assert "AGCC_WEATHER_API_KEY" in provider.REQUIRED_CONFIG_NAMES
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +406,7 @@ class TestAlignment:
 class TestSpaceWeatherProvider:
     def test_fixture_loads(self) -> None:
         provider = FixtureSpaceWeatherProvider(
-            _FIXTURE_DIR / "space_weather_fixture.json"
+            _SPACE_WEATHER_DIR / "space_weather_fixture.json"
         )
         snaps = asyncio.run(
             provider.snapshots_for(_BASE, _BASE + timedelta(hours=24))
@@ -388,7 +432,7 @@ class TestSpaceWeatherProvider:
     def test_no_capacity_multiplier_on_snapshot(self) -> None:
         """SpaceWeatherSnapshot must not have a capacity_multiplier field."""
         provider = FixtureSpaceWeatherProvider(
-            _FIXTURE_DIR / "space_weather_fixture.json"
+            _SPACE_WEATHER_DIR / "space_weather_fixture.json"
         )
         snaps = asyncio.run(
             provider.snapshots_for(_BASE, _BASE + timedelta(hours=24))

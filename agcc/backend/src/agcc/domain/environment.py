@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Mapping
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -37,7 +38,9 @@ class WeatherSnapshot(BaseModel):
     source_kind: SourceKind
     source_quality: SourceQuality
     raw_payload_hash: str = Field(
-        default="", description="SHA-256 hex digest of the raw source payload"
+        min_length=64,
+        max_length=71,
+        description="SHA-256 hex digest of the raw source payload",
     )
     provenance: Provenance
 
@@ -83,6 +86,11 @@ class SpaceWeatherSnapshot(BaseModel):
     # Provenance
     source_kind: SourceKind
     source_quality: SourceQuality
+    raw_payload_hash: str = Field(
+        min_length=64,
+        max_length=71,
+        description="SHA-256 hex digest of the raw source payload",
+    )
     provenance: Provenance
 
     @field_validator("snapshot_id", mode="before")
@@ -107,3 +115,15 @@ def payload_hash(raw: str | bytes) -> str:
     if isinstance(raw, str):
         raw = raw.encode()
     return hashlib.sha256(raw).hexdigest()
+
+
+def canonical_payload_hash(payload: Mapping[str, Any]) -> str:
+    """Compute a canonical SHA-256 hash of a payload dict.
+
+    The hash is computed over a copy of the dict with 'raw_payload_hash' removed,
+    serialised as compact sorted-keys JSON (UTF-8).
+    """
+    copy = dict(payload)
+    copy.pop("raw_payload_hash", None)
+    serialized = json.dumps(copy, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()

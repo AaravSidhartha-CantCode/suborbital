@@ -7,6 +7,8 @@ Verified invariants:
   4. No overlapping duplicate passes for the same station.
   5. Multiple demo stations produce multiple passes over 24 hours.
   6. Same input produces byte-identical normalised output (determinism).
+  7. Injected propagator is used by the engine (not direct _propagate_one).
+  8. Input validation (naive horizons, bad IDs, blank catalog version, duplicates).
 """
 
 from __future__ import annotations
@@ -14,10 +16,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from agcc.domain.enums import Band
 from agcc.domain.orbit import CustomCircularOrbit
 from agcc.domain.planning import CandidatePass
 from agcc.domain.stations import FieldProvenance, GroundStation, StationSelection
+from agcc.orbit.models import OrbitState
 from agcc.orbit.propagator import _propagate_one
 from agcc.passes.engine import PassEngine
 from agcc.passes.geometry import elevation_deg, station_ecef_km
@@ -39,7 +44,12 @@ _ORBIT_MID = CustomCircularOrbit(
     epoch=_EPOCH,
 )
 
-_COORD_PROV = FieldProvenance(assumptions=["latitude_deg", "longitude_deg", "altitude_m"])
+_FULL_ASSUMPTIONS = [
+    "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
+    "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
+    "cost_model", "booking_cost", "cost_per_minute", "currency",
+]
+_COORD_PROV = FieldProvenance(assumptions=_FULL_ASSUMPTIONS)
 
 
 def _make_station(
@@ -78,6 +88,8 @@ _STATIONS = [
 
 _ENGINE = PassEngine()
 _SAT_ID = "sat_test_main"
+_SCENARIO_ID = "scenario_test_main"
+_CATALOG_VERSION = "2026.08.1"
 
 _24H_START = _EPOCH
 _24H_END = _EPOCH + timedelta(hours=24)
@@ -93,6 +105,8 @@ def _compute_24h(
         stations=stations,
         horizon_start=_24H_START,
         horizon_end=_24H_END,
+        scenario_id=_SCENARIO_ID,
+        station_catalog_version=_CATALOG_VERSION,
     )
 
 
@@ -239,12 +253,14 @@ class TestMultiplePasses:
         stations = filter_stations(catalog, sel)
         assert stations, "Demo catalog produced no eligible stations"
 
-        passes = _ENGINE.compute_passes(
+        passes = _ENGINE.compute_passes_from_catalog(
             orbit=_ORBIT_MID,
             satellite_id=_SAT_ID,
-            stations=stations,
+            catalog=catalog,
+            selected_stations=stations,
             horizon_start=_24H_START,
             horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
         )
         station_ids = {p.station_id for p in passes}
         assert len(station_ids) >= 3, (
@@ -265,6 +281,8 @@ class TestDeterminism:
             stations=_STATIONS,
             horizon_start=_24H_START,
             horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
+            station_catalog_version=_CATALOG_VERSION,
         )
         p2 = engine.compute_passes(
             orbit=_ORBIT_MID,
@@ -272,6 +290,8 @@ class TestDeterminism:
             stations=_STATIONS,
             horizon_start=_24H_START,
             horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
+            station_catalog_version=_CATALOG_VERSION,
         )
         assert len(p1) == len(p2)
         for a, b in zip(p1, p2):
@@ -286,6 +306,8 @@ class TestDeterminism:
             stations=_STATIONS,
             horizon_start=_24H_START,
             horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
+            station_catalog_version=_CATALOG_VERSION,
         )
         p2 = engine2.compute_passes(
             orbit=_ORBIT_MID,
@@ -293,6 +315,8 @@ class TestDeterminism:
             stations=_STATIONS,
             horizon_start=_24H_START,
             horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
+            station_catalog_version=_CATALOG_VERSION,
         )
         ids1 = [p.pass_id for p in p1]
         ids2 = [p.pass_id for p in p2]
@@ -335,7 +359,195 @@ class TestGeometry:
             stations=[tight],
             horizon_start=_24H_START,
             horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
+            station_catalog_version=_CATALOG_VERSION,
         )
         # All passes should have been rejected (usable <= 0) or none exceed 45° threshold
         for p in passes:
             assert p.usable_duration_s > 0.0
+
+
+# ---------------------------------------------------------------------------
+# Propagator injection (Part E)
+# ---------------------------------------------------------------------------
+
+class _RecordingPropagator:
+    """Test-double propagator that wraps CircularKeplerPropagator and tracks calls."""
+
+    def __init__(self) -> None:
+        from agcc.orbit.propagator import CircularKeplerPropagator
+        self._real = CircularKeplerPropagator()
+        self.call_count = 0
+
+    def state_at(self, orbit: CustomCircularOrbit, at: datetime) -> OrbitState:
+        self.call_count += 1
+        return self._real.state_at(orbit, at)
+
+
+class TestPropagatorInjection:
+    def test_injected_propagator_is_called(self) -> None:
+        """Engine must use the injected propagator, not a hard-coded _propagate_one."""
+        recorder = _RecordingPropagator()
+        engine = PassEngine(propagator=recorder)
+        engine.compute_passes(
+            orbit=_ORBIT_MID,
+            satellite_id=_SAT_ID,
+            stations=[_STATIONS[0]],
+            horizon_start=_24H_START,
+            horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
+            station_catalog_version=_CATALOG_VERSION,
+        )
+        assert recorder.call_count > 0, (
+            "Engine did not call the injected propagator; it may still use _propagate_one directly"
+        )
+
+    def test_different_propagator_produces_different_ids(self) -> None:
+        """Two independent engines with the same real propagator produce same pass IDs."""
+        e1 = PassEngine()
+        e2 = PassEngine(propagator=_RecordingPropagator())
+        p1 = e1.compute_passes(
+            orbit=_ORBIT_MID, satellite_id=_SAT_ID, stations=_STATIONS,
+            horizon_start=_24H_START, horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID, station_catalog_version=_CATALOG_VERSION,
+        )
+        p2 = e2.compute_passes(
+            orbit=_ORBIT_MID, satellite_id=_SAT_ID, stations=_STATIONS,
+            horizon_start=_24H_START, horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID, station_catalog_version=_CATALOG_VERSION,
+        )
+        # Same orbit → same results regardless of wrapped propagator
+        assert [p.pass_id for p in p1] == [p.pass_id for p in p2]
+
+
+# ---------------------------------------------------------------------------
+# Input validation (Part F)
+# ---------------------------------------------------------------------------
+
+class TestInputValidation:
+    def test_naive_horizon_start_rejected(self) -> None:
+        with pytest.raises(ValueError, match="timezone-aware"):
+            _ENGINE.compute_passes(
+                orbit=_ORBIT_MID,
+                satellite_id=_SAT_ID,
+                stations=_STATIONS,
+                horizon_start=datetime(2024, 3, 20, 12, 0, 0),  # naive
+                horizon_end=_24H_END,
+                scenario_id=_SCENARIO_ID,
+                station_catalog_version=_CATALOG_VERSION,
+            )
+
+    def test_naive_horizon_end_rejected(self) -> None:
+        with pytest.raises(ValueError, match="timezone-aware"):
+            _ENGINE.compute_passes(
+                orbit=_ORBIT_MID,
+                satellite_id=_SAT_ID,
+                stations=_STATIONS,
+                horizon_start=_24H_START,
+                horizon_end=datetime(2024, 3, 21, 12, 0, 0),  # naive
+                scenario_id=_SCENARIO_ID,
+                station_catalog_version=_CATALOG_VERSION,
+            )
+
+    def test_reversed_horizon_rejected(self) -> None:
+        with pytest.raises(ValueError, match="after"):
+            _ENGINE.compute_passes(
+                orbit=_ORBIT_MID,
+                satellite_id=_SAT_ID,
+                stations=_STATIONS,
+                horizon_start=_24H_END,
+                horizon_end=_24H_START,
+                scenario_id=_SCENARIO_ID,
+                station_catalog_version=_CATALOG_VERSION,
+            )
+
+    def test_equal_horizons_rejected(self) -> None:
+        with pytest.raises(ValueError, match="after"):
+            _ENGINE.compute_passes(
+                orbit=_ORBIT_MID,
+                satellite_id=_SAT_ID,
+                stations=_STATIONS,
+                horizon_start=_24H_START,
+                horizon_end=_24H_START,
+                scenario_id=_SCENARIO_ID,
+                station_catalog_version=_CATALOG_VERSION,
+            )
+
+    def test_bad_satellite_id_rejected(self) -> None:
+        with pytest.raises(ValueError, match="sat_"):
+            _ENGINE.compute_passes(
+                orbit=_ORBIT_MID,
+                satellite_id="invalid_id",
+                stations=_STATIONS,
+                horizon_start=_24H_START,
+                horizon_end=_24H_END,
+                scenario_id=_SCENARIO_ID,
+                station_catalog_version=_CATALOG_VERSION,
+            )
+
+    def test_bad_scenario_id_rejected(self) -> None:
+        with pytest.raises(ValueError, match="scenario_"):
+            _ENGINE.compute_passes(
+                orbit=_ORBIT_MID,
+                satellite_id=_SAT_ID,
+                stations=_STATIONS,
+                horizon_start=_24H_START,
+                horizon_end=_24H_END,
+                scenario_id="",
+                station_catalog_version=_CATALOG_VERSION,
+            )
+
+    def test_blank_catalog_version_rejected(self) -> None:
+        with pytest.raises(ValueError, match="station_catalog_version"):
+            _ENGINE.compute_passes(
+                orbit=_ORBIT_MID,
+                satellite_id=_SAT_ID,
+                stations=_STATIONS,
+                horizon_start=_24H_START,
+                horizon_end=_24H_END,
+                scenario_id=_SCENARIO_ID,
+                station_catalog_version="",
+            )
+
+    def test_duplicate_station_ids_rejected(self) -> None:
+        dup_stations = [_STATIONS[0], _STATIONS[0]]
+        with pytest.raises(ValueError, match="Duplicate"):
+            _ENGINE.compute_passes(
+                orbit=_ORBIT_MID,
+                satellite_id=_SAT_ID,
+                stations=dup_stations,
+                horizon_start=_24H_START,
+                horizon_end=_24H_END,
+                scenario_id=_SCENARIO_ID,
+                station_catalog_version=_CATALOG_VERSION,
+            )
+
+
+# ---------------------------------------------------------------------------
+# compute_passes_from_catalog
+# ---------------------------------------------------------------------------
+
+class TestComputePassesFromCatalog:
+    def test_catalog_version_is_passed_through(self) -> None:
+        """compute_passes_from_catalog must stamp catalog.catalog_version onto passes."""
+        demo_path = (
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "data" / "catalogs" / "stations.demo.json"
+        )
+        catalog = load_catalog_from_file(demo_path)
+        sel = StationSelection(allow_all_eligible=True)
+        stations = filter_stations(catalog, sel)
+        assert stations
+
+        passes = _ENGINE.compute_passes_from_catalog(
+            orbit=_ORBIT_MID,
+            satellite_id=_SAT_ID,
+            catalog=catalog,
+            selected_stations=stations,
+            horizon_start=_24H_START,
+            horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
+        )
+        assert passes
+        for p in passes:
+            assert p.station_catalog_version == catalog.catalog_version

@@ -1,5 +1,18 @@
 {
-  "_comment": "AGCC station catalog template. Copy and fill in real values. All coordinate fields must appear in field_provenance.sources or field_provenance.assumptions.",
+  "_comment": "AGCC station catalog template. Copy and fill in real values. All populated fields must appear in field_provenance.sources or field_provenance.assumptions.",
+  "catalog_id": "catalog_template_v1",
+  "schema_version": "1.0.0",
+  "catalog_version": "2026.08.1",
+  "generated_at": "2026-08-20T00:00:00Z",
+  "provenance": {
+    "source_type": "fixture",
+    "source_name": "AGCC station catalog template",
+    "source_uri": null,
+    "source_version": "2026.08.1",
+    "observed_at": null,
+    "fetched_at": "2026-08-20T00:00:00Z",
+    "assumption_fields": []
+  },
   "stations": [
     {
       "station_id": "station_EXAMPLE",
@@ -8,8 +21,8 @@
       "latitude_deg": 0.0,
       "longitude_deg": 0.0,
       "altitude_m": 0.0,
-      "supported_bands": ["X"],
-      "max_downlink_rate_mbps": 100.0,
+      "supported_bands": null,
+      "max_downlink_rate_mbps": null,
       "minimum_elevation_deg": 5.0,
       "setup_s": 60,
       "teardown_s": 30,
@@ -22,7 +35,14 @@
         "sources": {
           "latitude_deg": "FILL IN SOURCE",
           "longitude_deg": "FILL IN SOURCE",
-          "altitude_m": "FILL IN SOURCE"
+          "altitude_m": "FILL IN SOURCE",
+          "minimum_elevation_deg": "FILL IN SOURCE",
+          "setup_s": "FILL IN SOURCE",
+          "teardown_s": "FILL IN SOURCE",
+          "cost_model": "FILL IN SOURCE",
+          "booking_cost": "FILL IN SOURCE",
+          "cost_per_minute": "FILL IN SOURCE",
+          "currency": "FILL IN SOURCE"
         },
         "assumptions": []
       },

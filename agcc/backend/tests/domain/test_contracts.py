@@ -59,9 +59,12 @@ def _orbit() -> CustomCircularOrbit:
 
 
 def _comms() -> SatelliteCommunications:
+    from agcc.domain.enums import Band
     return SatelliteCommunications(
-        downlink_rate_mbps=100.0,
-        bands=["X"],
+        band=Band.X,
+        carrier_frequency_ghz=9.6,
+        max_downlink_rate_mbps=100.0,
+        protocol_efficiency=1.0,
         min_elevation_deg=5.0,
     )
 
@@ -74,6 +77,13 @@ def _satellite(sat_id: str = "sat_test01") -> CustomSatellite:
         comms=_comms(),
         provenance=_PROVENANCE,
     )
+
+
+_FULL_STATION_ASSUMPTIONS = [
+    "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
+    "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
+    "cost_model", "booking_cost", "cost_per_minute", "currency",
+]
 
 
 def _station(station_id: str = "station_test01") -> GroundStation:
@@ -94,7 +104,7 @@ def _station(station_id: str = "station_test01") -> GroundStation:
         booking_cost=0.0,
         cost_per_minute=10.0,
         field_provenance=FieldProvenance(
-            assumptions=["latitude_deg", "longitude_deg", "altitude_m"]
+            assumptions=_FULL_STATION_ASSUMPTIONS
         ),
     )
 
@@ -102,6 +112,7 @@ def _station(station_id: str = "station_test01") -> GroundStation:
 def _candidate_pass(pass_id: str = "pass_001") -> CandidatePass:
     return CandidatePass(
         pass_id=pass_id,
+        scenario_id="scenario_test01",
         satellite_id="sat_test01",
         station_id="station_test01",
         start_at=_NOW,
@@ -115,6 +126,8 @@ def _candidate_pass(pass_id: str = "pass_001") -> CandidatePass:
         azimuth_end_deg=350.0,
         slant_range_peak_km=800.0,
         minimum_elevation_deg=5.0,
+        orbit_model_version="circular_kepler_v1",
+        station_catalog_version="2026.08.1",
     )
 
 
@@ -156,8 +169,8 @@ class TestIdPrefixes:
             mission_id="mission_m1",
             name="M1",
             required_volume_mb=100.0,
-            deadline=_NOW,
-            max_budget_usd=500.0,
+            release_at=_NOW,
+            deadline_at=_NOW + timedelta(hours=24),
         )
         assert m.mission_id == "mission_m1"
 
@@ -167,8 +180,8 @@ class TestIdPrefixes:
                 mission_id="plan_m1",
                 name="M1",
                 required_volume_mb=100.0,
-                deadline=_NOW,
-                max_budget_usd=500.0,
+                release_at=_NOW,
+                deadline_at=_NOW + timedelta(hours=24),
             )
 
     def test_plan_valid_id(self) -> None:
@@ -233,9 +246,13 @@ class TestIdPrefixes:
         c = CapacityEstimate(
             capacity_id="capacity_c1",
             pass_id="pass_p1",
-            estimated_rate_mbps=50.0,
-            estimated_capacity_mb=375.0,
-            duration_seconds=60.0,
+            base_rate_mbps=50.0,
+            usable_capacity_mb=375.0,
+            average_effective_rate_mbps=50.0,
+            peak_effective_rate_mbps=50.0,
+            weather_data_quality="verified",
+            model_version="capacity_v1",
+            sample_count=6,
         )
         assert c.capacity_id == "capacity_c1"
 
@@ -244,12 +261,17 @@ class TestIdPrefixes:
             CapacityEstimate(
                 capacity_id="pass_c1",
                 pass_id="pass_p1",
-                estimated_rate_mbps=50.0,
-                estimated_capacity_mb=375.0,
-                duration_seconds=60.0,
+                base_rate_mbps=50.0,
+                usable_capacity_mb=375.0,
+                average_effective_rate_mbps=50.0,
+                peak_effective_rate_mbps=50.0,
+                weather_data_quality="verified",
+                model_version="capacity_v1",
+                sample_count=6,
             )
 
     def test_scenario_valid_id(self) -> None:
+        from decimal import Decimal
         sc = Scenario(
             scenario_id="scenario_s1",
             name="S1",
@@ -257,13 +279,14 @@ class TestIdPrefixes:
             station_ids=["station_a"],
             mission_id="mission_m",
             constraints=ScenarioConstraints(
-                max_budget_usd=1000.0,
-                deadline=_NOW,
+                maximum_budget=Decimal("1000.00"),
+                currency="USD",
             ),
         )
         assert sc.scenario_id == "scenario_s1"
 
     def test_scenario_wrong_prefix_fails(self) -> None:
+        from decimal import Decimal
         with pytest.raises(ValidationError):
             Scenario(
                 scenario_id="plan_s1",
@@ -272,8 +295,8 @@ class TestIdPrefixes:
                 station_ids=["station_a"],
                 mission_id="mission_m",
                 constraints=ScenarioConstraints(
-                    max_budget_usd=1000.0,
-                    deadline=_NOW,
+                    maximum_budget=Decimal("1000.00"),
+                    currency="USD",
                 ),
             )
 
@@ -321,6 +344,7 @@ class TestNaiveDatetimes:
         with pytest.raises(ValidationError, match="naive"):
             CandidatePass(
                 pass_id="pass_001",
+                scenario_id="scenario_test",
                 satellite_id="sat_x",
                 station_id="station_y",
                 start_at=_NAIVE,
@@ -334,12 +358,15 @@ class TestNaiveDatetimes:
                 azimuth_end_deg=0.0,
                 slant_range_peak_km=900.0,
                 minimum_elevation_deg=5.0,
+                orbit_model_version="v1",
+                station_catalog_version="v1",
             )
 
     def test_pass_end_at_naive_rejected(self) -> None:
         with pytest.raises(ValidationError, match="naive"):
             CandidatePass(
                 pass_id="pass_001",
+                scenario_id="scenario_test",
                 satellite_id="sat_x",
                 station_id="station_y",
                 start_at=_NOW,
@@ -353,6 +380,8 @@ class TestNaiveDatetimes:
                 azimuth_end_deg=0.0,
                 slant_range_peak_km=900.0,
                 minimum_elevation_deg=5.0,
+                orbit_model_version="v1",
+                station_catalog_version="v1",
             )
 
     def test_mission_deadline_naive_rejected(self) -> None:
@@ -361,8 +390,8 @@ class TestNaiveDatetimes:
                 mission_id="mission_m1",
                 name="M",
                 required_volume_mb=100.0,
-                deadline=_NAIVE,
-                max_budget_usd=500.0,
+                release_at=_NOW,
+                deadline_at=_NAIVE,
             )
 
     def test_event_occurred_at_naive_rejected(self) -> None:
@@ -374,6 +403,29 @@ class TestNaiveDatetimes:
             )
 
     def test_weather_naive_rejected(self) -> None:
+        import hashlib
+        import json
+        payload = dict(
+            snapshot_id="event_wx_test",
+            station_id="station_x",
+            valid_from=_NOW.isoformat().replace("+00:00", "Z"),
+            valid_until=(_NOW + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
+            observed_at=_NAIVE.isoformat(),
+            fetched_at=_NOW.isoformat().replace("+00:00", "Z"),
+            precipitation_mm_per_hr=0.0,
+            temperature_c=15.0,
+            relative_humidity_pct=50.0,
+            cloud_cover_pct=0.0,
+            wind_speed_mps=0.0,
+            source_kind="fixture",
+            source_quality="verified",
+            provenance=dict(source_type="manual", source_name="test",
+                            fetched_at=_NOW.isoformat().replace("+00:00", "Z")),
+        )
+        h = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+            .encode("utf-8")
+        ).hexdigest()
         with pytest.raises(ValidationError, match="naive"):
             WeatherSnapshot(
                 snapshot_id="event_wx_test",
@@ -389,6 +441,7 @@ class TestNaiveDatetimes:
                 wind_speed_mps=0.0,
                 source_kind="fixture",
                 source_quality="verified",
+                raw_payload_hash=h,
                 provenance=_PROVENANCE,
             )
 
@@ -432,18 +485,24 @@ class TestUnitConstraints:
             )
 
     def test_downlink_rate_zero_rejected(self) -> None:
+        from agcc.domain.enums import Band
         with pytest.raises(ValidationError):
             SatelliteCommunications(
-                downlink_rate_mbps=0.0,
-                bands=["X"],
+                band=Band.X,
+                carrier_frequency_ghz=9.6,
+                max_downlink_rate_mbps=0.0,
+                protocol_efficiency=1.0,
                 min_elevation_deg=5.0,
             )
 
     def test_downlink_rate_negative_rejected(self) -> None:
+        from agcc.domain.enums import Band
         with pytest.raises(ValidationError):
             SatelliteCommunications(
-                downlink_rate_mbps=-1.0,
-                bands=["X"],
+                band=Band.X,
+                carrier_frequency_ghz=9.6,
+                max_downlink_rate_mbps=-1.0,
+                protocol_efficiency=1.0,
                 min_elevation_deg=5.0,
             )
 
@@ -453,8 +512,8 @@ class TestUnitConstraints:
                 mission_id="mission_m1",
                 name="M",
                 required_volume_mb=0.0,
-                deadline=_NOW,
-                max_budget_usd=500.0,
+                release_at=_NOW,
+                deadline_at=_NOW + timedelta(hours=24),
             )
 
     def test_required_volume_negative_rejected(self) -> None:
@@ -463,8 +522,8 @@ class TestUnitConstraints:
                 mission_id="mission_m1",
                 name="M",
                 required_volume_mb=-10.0,
-                deadline=_NOW,
-                max_budget_usd=500.0,
+                release_at=_NOW,
+                deadline_at=_NOW + timedelta(hours=24),
             )
 
     def test_fragment_volume_zero_rejected(self) -> None:
@@ -476,18 +535,26 @@ class TestUnitConstraints:
             )
 
     def test_station_max_rate_zero_rejected(self) -> None:
+        from agcc.domain.enums import Band
+        from agcc.domain.stations import FieldProvenance
         with pytest.raises(ValidationError):
             GroundStation(
                 station_id="station_x",
                 name="X",
+                provider_id="prov_x",
                 latitude_deg=0.0,
                 longitude_deg=0.0,
                 altitude_m=0.0,
-                supported_bands=["X"],
-                min_elevation_deg=5.0,
+                supported_bands=frozenset({Band.X}),
+                minimum_elevation_deg=5.0,
                 max_downlink_rate_mbps=0.0,
-                cost_per_minute_usd=0.0,
-                provenance=_PROVENANCE,
+                setup_s=0,
+                teardown_s=0,
+                booking_cost=0.0,
+                cost_per_minute=0.0,
+                field_provenance=FieldProvenance(
+                    assumptions=_FULL_STATION_ASSUMPTIONS
+                ),
             )
 
     def test_capacity_mb_negative_rejected(self) -> None:
@@ -495,9 +562,13 @@ class TestUnitConstraints:
             CapacityEstimate(
                 capacity_id="capacity_c1",
                 pass_id="pass_p1",
-                estimated_rate_mbps=50.0,
-                estimated_capacity_mb=-1.0,
-                duration_seconds=60.0,
+                base_rate_mbps=50.0,
+                usable_capacity_mb=-1.0,
+                average_effective_rate_mbps=50.0,
+                peak_effective_rate_mbps=50.0,
+                weather_data_quality="verified",
+                model_version="capacity_v1",
+                sample_count=6,
             )
 
 
@@ -530,11 +601,11 @@ class TestUtcSerialization:
             mission_id="mission_m1",
             name="M",
             required_volume_mb=100.0,
-            deadline=_NOW,
-            max_budget_usd=500.0,
+            release_at=_NOW,
+            deadline_at=_NOW + timedelta(hours=24),
         )
         data = m.model_dump(mode="json")
-        assert data["deadline"].endswith("Z")
+        assert data["deadline_at"].endswith("Z")
 
 
 # ---------------------------------------------------------------------------
@@ -588,3 +659,92 @@ class TestModelRef:
     def test_negative_version_rejected(self) -> None:
         with pytest.raises(ValidationError):
             ModelRef(id="plan_abc", version=-1)
+
+
+# ---------------------------------------------------------------------------
+# CandidatePass invariants (Part D)
+# ---------------------------------------------------------------------------
+
+class TestCandidatePassInvariants:
+    """Tests for the CandidatePass model_validator invariants."""
+
+    def _base_kwargs(self, **overrides: object) -> dict:
+        kw: dict = dict(
+            pass_id="pass_001",
+            scenario_id="scenario_test01",
+            satellite_id="sat_test01",
+            station_id="station_test01",
+            start_at=_NOW,
+            peak_at=_NOW + timedelta(minutes=5),
+            end_at=_NOW + timedelta(minutes=10),
+            duration_s=600.0,
+            usable_duration_s=480.0,
+            max_elevation_deg=45.0,
+            azimuth_start_deg=10.0,
+            azimuth_peak_deg=180.0,
+            azimuth_end_deg=350.0,
+            slant_range_peak_km=800.0,
+            minimum_elevation_deg=5.0,
+            orbit_model_version="circular_kepler_v1",
+            station_catalog_version="2026.08.1",
+        )
+        kw.update(overrides)
+        return kw
+
+    def test_valid_pass_is_accepted(self) -> None:
+        p = CandidatePass(**self._base_kwargs())
+        assert p.pass_id == "pass_001"
+
+    def test_peak_before_start_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(
+                peak_at=_NOW - timedelta(seconds=1),
+            ))
+
+    def test_peak_equal_to_start_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(
+                peak_at=_NOW,
+            ))
+
+    def test_end_before_peak_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(
+                end_at=_NOW + timedelta(minutes=3),
+                duration_s=300.0,
+                peak_at=_NOW + timedelta(minutes=4),
+            ))
+
+    def test_inconsistent_duration_rejected(self) -> None:
+        """duration_s that differs from end_at - start_at by > 1s must be rejected."""
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(
+                duration_s=700.0,  # 600s actual, 700s stated → 100s diff > 1s
+            ))
+
+    def test_zero_usable_duration_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(usable_duration_s=0.0))
+
+    def test_usable_greater_than_duration_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(usable_duration_s=700.0))
+
+    def test_max_el_less_than_min_el_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(
+                max_elevation_deg=3.0,
+                minimum_elevation_deg=5.0,
+            ))
+
+    def test_blank_scenario_id_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(scenario_id=""))
+
+    def test_blank_orbit_model_version_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(orbit_model_version=""))
+
+    def test_blank_station_catalog_version_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            CandidatePass(**self._base_kwargs(station_catalog_version=""))
