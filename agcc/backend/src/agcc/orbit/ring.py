@@ -76,8 +76,8 @@ def orbit_to_ring(orbit: CustomCircularOrbit) -> OrbitRingTransform:
     si = math.sin(inc_rad / 2.0)
 
     # q_raan = (cos(-r/2), 0, sin(-r/2), 0)
-    cr = math.cos(-raan_rad / 2.0)   # = cos(raan/2)
-    sr = math.sin(-raan_rad / 2.0)   # = -sin(raan/2)
+    cr = math.cos(-raan_rad / 2.0)  # = cos(raan/2)
+    sr = math.sin(-raan_rad / 2.0)  # = -sin(raan/2)
 
     # q = q_raan * q_inc
     # (w1,x1,y1,z1)*(w2,x2,y2,z2) =

@@ -1,0 +1,6 @@
+.live-weather{min-height:520px;padding:32px;border:1px solid #263b47;background:radial-gradient(circle at top,#0d202a,#050b12)}
+.live-weather h2{margin:7px 0 22px}.weather-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.weather-grid article{padding:18px;border:1px solid #25565c;background:#09171e}.weather-grid article>span{display:block;color:#7b929f;text-transform:capitalize}
+.weather-grid article>strong{display:block;margin:12px 0;font:500 28px ui-monospace,monospace;color:#78e4de}.weather-grid dl div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #182d36}
+.weather-grid dt,.weather-grid dd,.weather-grid small{font-size:9px}.weather-grid small{display:block;margin-top:12px;color:#68818e}
+.weather-error{display:grid;gap:7px;padding:18px;border:1px solid #8a552e;background:#25150b}.weather-error b{color:#ffb274}.weather-caveat{margin-top:20px;color:#6f8490;font-size:10px}

@@ -22,7 +22,7 @@ from decimal import Decimal
 
 import pytest
 
-from agcc.dispatch import DispatchBuilder, FragmentState
+from agcc.dispatch import DispatchBuilder
 from agcc.domain.enums import Band, CostModel, EventType
 from agcc.domain.mission import PlanningPreference
 from agcc.domain.planning import CandidatePass, CapacityEstimate
@@ -31,12 +31,12 @@ from agcc.feasibility import EligiblePassRecord
 from agcc.feasibility.builder import EligiblePassBuilder
 from agcc.planner import ContactPlan, ContactPlanner, PlanStatus
 from agcc.simulation import (
+    TICK_S,
     ClockSpeed,
     SessionEventStore,
     SimulationClock,
     SimulationEngine,
     SimulationEvent,
-    TICK_S,
 )
 
 # ---------------------------------------------------------------------------
@@ -49,9 +49,18 @@ _BUDGET = Decimal("100000")
 
 _FULL_PROV = FieldProvenance(
     assumptions=[
-        "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
-        "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
-        "cost_model", "booking_cost", "cost_per_minute", "currency",
+        "latitude_deg",
+        "longitude_deg",
+        "altitude_m",
+        "supported_bands",
+        "max_downlink_rate_mbps",
+        "minimum_elevation_deg",
+        "setup_s",
+        "teardown_s",
+        "cost_model",
+        "booking_cost",
+        "cost_per_minute",
+        "currency",
     ]
 )
 
@@ -120,8 +129,9 @@ def _cap(pass_id: str, capacity_mb: float) -> CapacityEstimate:
     )
 
 
-def _record(pass_id: str, offset_h: float, cap_mb: float,
-            station: GroundStation) -> EligiblePassRecord:
+def _record(
+    pass_id: str, offset_h: float, cap_mb: float, station: GroundStation
+) -> EligiblePassRecord:
     p = _pass(pass_id, offset_h)
     c = _cap(pass_id, cap_mb)
     builder = EligiblePassBuilder(
@@ -132,8 +142,9 @@ def _record(pass_id: str, offset_h: float, cap_mb: float,
     return builder.build(p, c, station)
 
 
-def _build_plan(records: list[EligiblePassRecord], station: GroundStation,
-                required_mb: float) -> ContactPlan:
+def _build_plan(
+    records: list[EligiblePassRecord], station: GroundStation, required_mb: float
+) -> ContactPlan:
     return ContactPlanner().plan(
         plan_id="plan_sim00000001",
         scenario_id="scenario_s01",
@@ -234,6 +245,12 @@ class TestSimulationClock:
         delta = abs((advanced.sim_time - expected).total_seconds())
         assert delta < 1e-6
 
+    def test_100x_speed(self) -> None:
+        wall0 = _NOW
+        clock = SimulationClock(_NOW, wall0, ClockSpeed.X100)
+        advanced = clock.advance(wall0 + timedelta(seconds=1))
+        assert advanced.sim_time == _NOW + timedelta(seconds=100)
+
     def test_1000x_speed(self) -> None:
         wall0 = _NOW
         clock = SimulationClock(_NOW, wall0, ClockSpeed.X1000)
@@ -262,7 +279,7 @@ class TestSimulationClock:
     def test_clock_is_immutable(self) -> None:
         wall0 = _NOW
         clock = SimulationClock(_NOW, wall0, ClockSpeed.X1)
-        clock2 = clock.advance(wall0 + timedelta(seconds=5))
+        clock.advance(wall0 + timedelta(seconds=5))
         # Original clock sim_time unchanged
         assert clock.sim_time == _NOW
 
@@ -294,9 +311,15 @@ class TestSessionEventStore:
 
     def test_events_monotone_sequence_enforced(self) -> None:
         store = SessionEventStore()
-        ev0 = SimulationEvent(sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW)
-        ev1 = SimulationEvent(sequence_number=1, event_type=EventType.CONTACT_STARTED, sim_time=_NOW)
-        ev_bad = SimulationEvent(sequence_number=1, event_type=EventType.CONTACT_ENDED, sim_time=_NOW)
+        ev0 = SimulationEvent(
+            sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW
+        )
+        ev1 = SimulationEvent(
+            sequence_number=1, event_type=EventType.CONTACT_STARTED, sim_time=_NOW
+        )
+        ev_bad = SimulationEvent(
+            sequence_number=1, event_type=EventType.CONTACT_ENDED, sim_time=_NOW
+        )
         store.append(ev0)
         store.append(ev1)
         with pytest.raises(ValueError, match="Non-monotone"):
@@ -304,15 +327,29 @@ class TestSessionEventStore:
 
     def test_events_of_type_filter(self) -> None:
         store = SessionEventStore()
-        store.append(SimulationEvent(sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW))
-        store.append(SimulationEvent(sequence_number=1, event_type=EventType.CONTACT_STARTED, sim_time=_NOW))
-        store.append(SimulationEvent(sequence_number=2, event_type=EventType.SIMULATION_PAUSED, sim_time=_NOW))
+        store.append(
+            SimulationEvent(
+                sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW
+            )
+        )
+        store.append(
+            SimulationEvent(sequence_number=1, event_type=EventType.CONTACT_STARTED, sim_time=_NOW)
+        )
+        store.append(
+            SimulationEvent(
+                sequence_number=2, event_type=EventType.SIMULATION_PAUSED, sim_time=_NOW
+            )
+        )
         started = store.events_of_type(EventType.CONTACT_STARTED)
         assert len(started) == 1
 
     def test_all_events_returns_copy(self) -> None:
         store = SessionEventStore()
-        store.append(SimulationEvent(sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW))
+        store.append(
+            SimulationEvent(
+                sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW
+            )
+        )
         events = store.all_events()
         events.clear()  # modifying the copy
         assert len(store) == 1  # store unaffected
@@ -325,7 +362,9 @@ class TestSessionEventStore:
 
 class TestSimulationEventFields:
     def test_event_id_has_prefix(self) -> None:
-        ev = SimulationEvent(sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW)
+        ev = SimulationEvent(
+            sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW
+        )
         assert ev.event_id.startswith("event_")
 
     def test_sequence_number_preserved(self) -> None:
@@ -333,13 +372,21 @@ class TestSimulationEventFields:
         assert ev.sequence_number == 42
 
     def test_event_id_deterministic(self) -> None:
-        ev1 = SimulationEvent(sequence_number=7, event_type=EventType.CONTACT_STARTED, sim_time=_NOW)
-        ev2 = SimulationEvent(sequence_number=7, event_type=EventType.CONTACT_STARTED, sim_time=_NOW)
+        ev1 = SimulationEvent(
+            sequence_number=7, event_type=EventType.CONTACT_STARTED, sim_time=_NOW
+        )
+        ev2 = SimulationEvent(
+            sequence_number=7, event_type=EventType.CONTACT_STARTED, sim_time=_NOW
+        )
         assert ev1.event_id == ev2.event_id
 
     def test_event_id_unique_per_sequence(self) -> None:
-        ev1 = SimulationEvent(sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW)
-        ev2 = SimulationEvent(sequence_number=1, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW)
+        ev1 = SimulationEvent(
+            sequence_number=0, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW
+        )
+        ev2 = SimulationEvent(
+            sequence_number=1, event_type=EventType.SIMULATION_STARTED, sim_time=_NOW
+        )
         assert ev1.event_id != ev2.event_id
 
 
@@ -509,6 +556,8 @@ class TestDeadlineMissed:
         engine.tick(tight_deadline + timedelta(seconds=1))
         missed = store.events_of_type(EventType.MISSION_DEADLINE_MISSED)
         assert len(missed) == 1
+        assert engine.sim_time == tight_deadline
+        assert missed[0].sim_time == tight_deadline
 
     def test_deadline_missed_only_when_not_completed(self) -> None:
         """If target already reached, no DEADLINE_MISSED should be emitted."""
@@ -553,6 +602,41 @@ class TestPauseResume:
 
 
 class TestShortfallPrediction:
+    def test_contact_close_runs_dispatch_redistribution(self) -> None:
+        engine, _, plan = _make_engine(required_mb=50.0, anomaly_multiplier=0.0)
+        engine.start(_NOW)
+        contact = plan.contacts[0]
+        engine.tick(contact.start_at)
+        engine.tick(contact.end_at)
+        assert engine.last_residual_shortfall is not None
+        assert engine.last_residual_shortfall.after_contact_id == contact.contact_id
+
+    def test_rate_provider_is_queried_at_each_simulation_tick(self) -> None:
+        st = _station()
+        plan = _build_plan([_record("pass_dynamic", 1.0, 200.0, st)], st, 50.0)
+        dispatch = DispatchBuilder().build(plan)
+        queried_at: list[datetime] = []
+
+        def rate_provider(_contact: object, at: datetime) -> float:
+            queried_at.append(at)
+            return 8.0
+
+        engine = SimulationEngine(
+            plan=plan,
+            dispatch=dispatch,
+            required_volume_mb=50.0,
+            deadline=_DEADLINE,
+            base_rate_mbps=0.0,
+            protocol_efficiency=1.0,
+            store=SessionEventStore(),
+            rate_provider=rate_provider,
+        )
+        engine.start(_NOW)
+        start = plan.contacts[0].start_at
+        engine.tick(start)
+        engine.tick(start + timedelta(seconds=1))
+        assert queried_at == [start, start + timedelta(seconds=1)]
+
     def test_shortfall_predicted_emitted_on_transition(self) -> None:
         """Start with 0 shortfall; reduce capacity to force a shortfall."""
         # Single contact, anomaly multiplier = 0 → no delivery → shortfall appears
@@ -567,7 +651,7 @@ class TestShortfallPrediction:
             engine.tick(sim_t)
             sim_t += timedelta(seconds=1)
         # Eventually shortfall should be predicted
-        shortfall_events = store.events_of_type(EventType.SHORTFALL_PREDICTED)
+        store.events_of_type(EventType.SHORTFALL_PREDICTED)
         # We don't mandate exactly when, but at least one should appear by end of contact
         sim_t2 = contact.end_at + timedelta(seconds=1)
         engine.tick(sim_t2)
@@ -645,7 +729,6 @@ class TestTickConversion:
         engine.start(_NOW)
         contact = plan.contacts[0]
         sim_t = contact.start_at
-        prev_rate_count = 0
         for i in range(3):
             engine.tick(sim_t)
             sim_t += timedelta(seconds=TICK_S)

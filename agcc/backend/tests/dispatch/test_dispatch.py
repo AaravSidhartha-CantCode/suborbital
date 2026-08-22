@@ -51,9 +51,18 @@ _BUDGET = Decimal("100000")
 
 _FULL_PROV = FieldProvenance(
     assumptions=[
-        "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
-        "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
-        "cost_model", "booking_cost", "cost_per_minute", "currency",
+        "latitude_deg",
+        "longitude_deg",
+        "altitude_m",
+        "supported_bands",
+        "max_downlink_rate_mbps",
+        "minimum_elevation_deg",
+        "setup_s",
+        "teardown_s",
+        "cost_model",
+        "booking_cost",
+        "cost_per_minute",
+        "currency",
     ]
 )
 
@@ -82,8 +91,9 @@ def _station(
     )
 
 
-def _pass(pass_id: str, offset_h: float, dur_s: float = 600.0,
-          station_id: str = "station_alpha01") -> CandidatePass:
+def _pass(
+    pass_id: str, offset_h: float, dur_s: float = 600.0, station_id: str = "station_alpha01"
+) -> CandidatePass:
     start = _NOW + timedelta(hours=offset_h)
     end = start + timedelta(seconds=dur_s)
     return CandidatePass(
@@ -122,8 +132,9 @@ def _cap(pass_id: str, capacity_mb: float) -> CapacityEstimate:
     )
 
 
-def _record(pass_id: str, offset_h: float, capacity_mb: float,
-            station: GroundStation) -> EligiblePassRecord:
+def _record(
+    pass_id: str, offset_h: float, capacity_mb: float, station: GroundStation
+) -> EligiblePassRecord:
     p = _pass(pass_id, offset_h, station_id=station.station_id)
     c = _cap(pass_id, capacity_mb)
     builder = EligiblePassBuilder(
@@ -169,15 +180,15 @@ def _redistributor() -> DispatchRedistributor:
 
 
 def _assert_conservation(dp: DispatchPlan, tol: float = 1e-6) -> None:
-    delivered = sum(
-        f.volume_mb for f in dp.fragments if f.state == FragmentState.DELIVERED
-    )
+    delivered = sum(f.volume_mb for f in dp.fragments if f.state == FragmentState.DELIVERED)
     assigned = sum(
-        f.volume_mb for f in dp.fragments
+        f.volume_mb
+        for f in dp.fragments
         if f.state in (FragmentState.ASSIGNED, FragmentState.TRANSMITTING)
     )
     queued = sum(
-        f.volume_mb for f in dp.fragments
+        f.volume_mb
+        for f in dp.fragments
         if f.state in (FragmentState.QUEUED, FragmentState.PARTIAL)
     )
     total = delivered + assigned + queued
@@ -442,9 +453,7 @@ class TestPartialContact:
         ]
         plan = _build_plan(records, st, required_mb=60.0)
         assert plan.status == PlanStatus.FEASIBLE
-        assert len(plan.contacts) == 2, (
-            f"Expected 2 contacts, got {len(plan.contacts)}"
-        )
+        assert len(plan.contacts) == 2, f"Expected 2 contacts, got {len(plan.contacts)}"
         dp = _builder().build(plan)
         contact = plan.contacts[0]
         # Deliver only 10 MB from contact 1 (originally allocated 40 MB)
@@ -819,10 +828,7 @@ class TestInvariantFragmentState:
             contacts_in_order=plan.contacts,
         )
         # Any new queued fragments should have a parent_fragment_id
-        new_frags = [
-            f for f in updated.fragments
-            if f.sequence_number >= len(dp.fragments)
-        ]
+        new_frags = [f for f in updated.fragments if f.sequence_number >= len(dp.fragments)]
         for f in new_frags:
             assert f.parent_fragment_id is not None
 
@@ -841,10 +847,7 @@ class TestInvariantFragmentState:
             delivered_at=_NOW + timedelta(hours=2),
             contacts_in_order=plan.contacts,
         )
-        delivered_ids = {
-            f.fragment_id for f in dp.fragments
-            if f.state == FragmentState.DELIVERED
-        }
+        delivered_ids = {f.fragment_id for f in dp.fragments if f.state == FragmentState.DELIVERED}
         # In original dp, none were DELIVERED yet
         # After update, they should be DELIVERED
         for f in updated.fragments:
@@ -872,7 +875,5 @@ class TestInvariantFragmentState:
             contacts_in_order=plan.contacts,
         )
         # planned_volume_mb of contact 1's allocation must be unchanged
-        new_alloc_0 = next(
-            a for a in updated.allocations if a.contact_id == c1.contact_id
-        )
+        new_alloc_0 = next(a for a in updated.allocations if a.contact_id == c1.contact_id)
         assert new_alloc_0.planned_volume_mb == pytest.approx(original_planned)

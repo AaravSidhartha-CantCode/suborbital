@@ -47,6 +47,7 @@ def _make_id_type(prefix: str) -> type:
 # embedded at the field level. The actual enforcement happens in each model
 # via a shared helper.
 
+
 def _validate_id(prefix: str, value: str) -> str:
     if not isinstance(value, str):
         raise ValueError("ID must be a string")
@@ -60,6 +61,7 @@ def _validate_id(prefix: str, value: str) -> str:
 # ---------------------------------------------------------------------------
 # UTC datetime enforcement
 # ---------------------------------------------------------------------------
+
 
 def _require_utc(value: datetime | str) -> datetime:
     """Reject naive datetimes; convert any aware datetime to UTC.
@@ -78,6 +80,7 @@ def _require_utc(value: datetime | str) -> datetime:
 # ---------------------------------------------------------------------------
 # Provenance
 # ---------------------------------------------------------------------------
+
 
 class Provenance(BaseModel):
     """Records origin and currency of externally derived data."""
@@ -108,6 +111,7 @@ class Provenance(BaseModel):
 # ---------------------------------------------------------------------------
 # ModelRef
 # ---------------------------------------------------------------------------
+
 
 class ModelRef(BaseModel):
     """Lightweight pointer to a versioned model instance."""

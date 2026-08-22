@@ -48,6 +48,7 @@ def _orbit(
 # Range validation
 # ---------------------------------------------------------------------------
 
+
 class TestRangeValidation:
     def test_valid_altitude_lower_bound(self) -> None:
         o = _orbit(altitude_km=200.0)
@@ -106,6 +107,7 @@ class TestRangeValidation:
 # Fixed literals
 # ---------------------------------------------------------------------------
 
+
 class TestFixedLiterals:
     def test_eccentricity_is_zero(self) -> None:
         o = _orbit()
@@ -128,6 +130,7 @@ class TestFixedLiterals:
 # Direction derivation
 # ---------------------------------------------------------------------------
 
+
 class TestDirectionDerivation:
     def test_prograde_at_zero_inclination(self) -> None:
         o = _orbit(inclination_deg=0.0)
@@ -149,6 +152,7 @@ class TestDirectionDerivation:
 # ---------------------------------------------------------------------------
 # Derived value calculations
 # ---------------------------------------------------------------------------
+
 
 class TestDerivedValues:
     def test_semi_major_axis_550(self) -> None:
@@ -194,6 +198,7 @@ class TestDerivedValues:
 # ---------------------------------------------------------------------------
 # Presets
 # ---------------------------------------------------------------------------
+
 
 class TestPresets:
     def test_equatorial_altitude(self) -> None:
@@ -263,9 +268,7 @@ class TestRingRoundTrip:
         assert abs(inc_rt - inc) < 1e-6, f"inclination round-trip error: {abs(inc_rt - inc)}"
 
     @pytest.mark.parametrize("inc,raan,phase,alt", _ROUND_TRIP_CASES)
-    def test_round_trip_raan(
-        self, inc: float, raan: float, phase: float, alt: float
-    ) -> None:
+    def test_round_trip_raan(self, inc: float, raan: float, phase: float, alt: float) -> None:
         o = _orbit(altitude_km=alt, inclination_deg=inc, raan_deg=raan, phase_deg=phase)
         ring = orbit_to_ring(o)
         inc_rt, raan_rt, phase_rt, alt_rt = ring_to_orbit(ring)
@@ -274,9 +277,7 @@ class TestRingRoundTrip:
         assert raan_err < 1e-6, f"raan round-trip error: {raan_err}"
 
     @pytest.mark.parametrize("inc,raan,phase,alt", _ROUND_TRIP_CASES)
-    def test_round_trip_phase(
-        self, inc: float, raan: float, phase: float, alt: float
-    ) -> None:
+    def test_round_trip_phase(self, inc: float, raan: float, phase: float, alt: float) -> None:
         o = _orbit(altitude_km=alt, inclination_deg=inc, raan_deg=raan, phase_deg=phase)
         ring = orbit_to_ring(o)
         inc_rt, raan_rt, phase_rt, alt_rt = ring_to_orbit(ring)
@@ -284,9 +285,7 @@ class TestRingRoundTrip:
         assert phase_err < 1e-6, f"phase round-trip error: {phase_err}"
 
     @pytest.mark.parametrize("inc,raan,phase,alt", _ROUND_TRIP_CASES)
-    def test_round_trip_altitude(
-        self, inc: float, raan: float, phase: float, alt: float
-    ) -> None:
+    def test_round_trip_altitude(self, inc: float, raan: float, phase: float, alt: float) -> None:
         o = _orbit(altitude_km=alt, inclination_deg=inc, raan_deg=raan, phase_deg=phase)
         ring = orbit_to_ring(o)
         inc_rt, raan_rt, phase_rt, alt_rt = ring_to_orbit(ring)

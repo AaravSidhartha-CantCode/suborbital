@@ -27,7 +27,7 @@ from agcc.capacity.attenuation import (
     NoWeatherAttenuationModel,
 )
 from agcc.capacity.engine import CapacityEngine, _interpolate_elevation, is_capacity_eligible
-from agcc.domain.enums import Band, SourceQuality
+from agcc.domain.enums import Band, LinkPolarization, SourceQuality
 from agcc.domain.orbit import SatelliteCommunications
 from agcc.domain.planning import CandidatePass
 from agcc.domain.stations import FieldProvenance, GroundStation
@@ -37,8 +37,7 @@ from agcc.domain.stations import FieldProvenance, GroundStation
 # ---------------------------------------------------------------------------
 
 _FIXTURE_DIR = (
-    Path(__file__).resolve().parent.parent.parent.parent
-    / "data" / "fixtures" / "environment"
+    Path(__file__).resolve().parent.parent.parent.parent / "data" / "fixtures" / "environment"
 )
 _TEST_TABLE = _FIXTURE_DIR / "weather_attenuation_test.json"
 
@@ -48,11 +47,22 @@ _TEST_TABLE = _FIXTURE_DIR / "weather_attenuation_test.json"
 
 _NOW = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
 
-_COORD_PROV = FieldProvenance(assumptions=[
-    "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
-    "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
-    "cost_model", "booking_cost", "cost_per_minute", "currency",
-])
+_COORD_PROV = FieldProvenance(
+    assumptions=[
+        "latitude_deg",
+        "longitude_deg",
+        "altitude_m",
+        "supported_bands",
+        "max_downlink_rate_mbps",
+        "minimum_elevation_deg",
+        "setup_s",
+        "teardown_s",
+        "cost_model",
+        "booking_cost",
+        "cost_per_minute",
+        "currency",
+    ]
+)
 
 
 def _make_comms(
@@ -66,6 +76,7 @@ def _make_comms(
         carrier_frequency_ghz=carrier_frequency_ghz,
         max_downlink_rate_mbps=max_downlink_rate_mbps,
         protocol_efficiency=protocol_efficiency,
+        polarization=LinkPolarization.CIRCULAR,
         min_elevation_deg=5.0,
     )
 
@@ -129,6 +140,7 @@ def _make_pass(
 # Acceptance 1: 8 Mbps × 10 s × all-factors-1 = 10 MB
 # ---------------------------------------------------------------------------
 
+
 class TestAcceptance1BasicMath:
     """8 Mbps for 10 s with all factors 1 must equal exactly 10 MB."""
 
@@ -166,6 +178,7 @@ class TestAcceptance1BasicMath:
 # Acceptance 2: capacity never exceeds rate-limit maximum
 # ---------------------------------------------------------------------------
 
+
 class TestAcceptance2RateLimit:
     def test_capacity_bounded_by_satellite_rate(self) -> None:
         engine = CapacityEngine(NoWeatherAttenuationModel())
@@ -173,8 +186,13 @@ class TestAcceptance2RateLimit:
         station = _make_station(max_downlink_rate_mbps=1000.0)
         pass_ = _make_pass(duration_s=600.0, max_elevation_deg=90.0)
 
-        est = engine.estimate(pass_, comms, station, precipitation_mm_per_hr=0.0,
-                               weather_data_quality=SourceQuality.VERIFIED)
+        est = engine.estimate(
+            pass_,
+            comms,
+            station,
+            precipitation_mm_per_hr=0.0,
+            weather_data_quality=SourceQuality.VERIFIED,
+        )
 
         max_possible_mb = 8.0 * 600.0 / 8.0  # 600 MB at full rate
         assert est.usable_capacity_mb <= max_possible_mb + 1e-9
@@ -185,8 +203,13 @@ class TestAcceptance2RateLimit:
         station = _make_station(max_downlink_rate_mbps=8.0)
         pass_ = _make_pass(duration_s=600.0, max_elevation_deg=90.0)
 
-        est = engine.estimate(pass_, comms, station, precipitation_mm_per_hr=0.0,
-                               weather_data_quality=SourceQuality.VERIFIED)
+        est = engine.estimate(
+            pass_,
+            comms,
+            station,
+            precipitation_mm_per_hr=0.0,
+            weather_data_quality=SourceQuality.VERIFIED,
+        )
 
         max_possible_mb = 8.0 * 600.0 / 8.0
         assert est.usable_capacity_mb <= max_possible_mb + 1e-9
@@ -214,6 +237,7 @@ class TestAcceptance2RateLimit:
 # Acceptance 3: higher elevation never lowers elevation factor
 # ---------------------------------------------------------------------------
 
+
 class TestAcceptance3ElevationFactor:
     def test_higher_elevation_monotone_factor(self) -> None:
         """sin(elevation) is monotone in [0°, 90°]: higher elevation ↛ lower factor."""
@@ -221,7 +245,7 @@ class TestAcceptance3ElevationFactor:
         factors = [max(0.0, min(1.0, math.sin(math.radians(e)))) for e in elevations]
         for i in range(len(factors) - 1):
             assert factors[i] <= factors[i + 1], (
-                f"Elevation factor decreased from {elevations[i]}° to {elevations[i+1]}°"
+                f"Elevation factor decreased from {elevations[i]}° to {elevations[i + 1]}°"
             )
 
     def test_higher_elevation_pass_has_more_capacity(self) -> None:
@@ -254,6 +278,7 @@ class TestAcceptance3ElevationFactor:
 # ---------------------------------------------------------------------------
 # Acceptance 4: table factor outside [0, 1] is rejected
 # ---------------------------------------------------------------------------
+
 
 class TestAcceptance4TableValidation:
     def test_factor_above_1_rejected_at_load(self, tmp_path: Path) -> None:
@@ -303,6 +328,7 @@ class TestAcceptance4TableValidation:
 # Acceptance 5: missing production config blocks calculation
 # ---------------------------------------------------------------------------
 
+
 class TestAcceptance5ProductionBlock:
     def test_not_configured_raises_runtime_error(self) -> None:
         engine = CapacityEngine(NotConfiguredWeatherAttenuationModel())
@@ -324,6 +350,7 @@ class TestAcceptance5ProductionBlock:
 # ---------------------------------------------------------------------------
 # Band/frequency validation
 # ---------------------------------------------------------------------------
+
 
 class TestBandFrequencyValidation:
     def test_x_band_valid_frequency(self) -> None:
@@ -371,6 +398,7 @@ class TestBandFrequencyValidation:
 # Eligibility
 # ---------------------------------------------------------------------------
 
+
 class TestEligibility:
     def test_band_mismatch_not_eligible(self) -> None:
         comms = _make_comms(band=Band.X)
@@ -395,6 +423,7 @@ class TestEligibility:
 # NoWeatherAttenuationModel assumption label
 # ---------------------------------------------------------------------------
 
+
 class TestNoWeatherAssumption:
     def test_no_weather_model_adds_assumption_label(self) -> None:
         engine = CapacityEngine(NoWeatherAttenuationModel())
@@ -411,13 +440,20 @@ class TestNoWeatherAssumption:
         station = _make_station()
         pass_ = _make_pass(duration_s=10.0, max_elevation_deg=90.0)
 
-        est = engine.estimate(pass_, comms, station, precipitation_mm_per_hr=0.0)
+        est = engine.estimate(
+            pass_,
+            comms,
+            station,
+            precipitation_mm_per_hr=0.0,
+            weather_data_quality=SourceQuality.VERIFIED,
+        )
         assert NoWeatherAttenuationModel.ASSUMPTION_LABEL not in est.assumptions
 
 
 # ---------------------------------------------------------------------------
 # Setup/teardown exclusion
 # ---------------------------------------------------------------------------
+
 
 class TestSetupTeardown:
     def test_setup_teardown_reduces_capacity(self) -> None:
@@ -450,6 +486,7 @@ class TestSetupTeardown:
 # Elevation interpolation
 # ---------------------------------------------------------------------------
 
+
 class TestElevationInterpolation:
     def test_interpolation_at_peak_returns_max_elevation(self) -> None:
         pass_ = _make_pass(duration_s=600.0, max_elevation_deg=45.0)
@@ -463,21 +500,19 @@ class TestElevationInterpolation:
 
     def test_interpolation_monotone_rising(self) -> None:
         pass_ = _make_pass(duration_s=600.0, max_elevation_deg=45.0)
-        times = [
-            pass_.start_at + timedelta(seconds=i * 30)
-            for i in range(11)
-        ]
+        times = [pass_.start_at + timedelta(seconds=i * 30) for i in range(11)]
         elevations = [_interpolate_elevation(pass_, t) for t in times]
         # First half should be rising
         for i in range(5):
             assert elevations[i] <= elevations[i + 1], (
-                f"Elevation not rising at sample {i}: {elevations[i]} > {elevations[i+1]}"
+                f"Elevation not rising at sample {i}: {elevations[i]} > {elevations[i + 1]}"
             )
 
 
 # ---------------------------------------------------------------------------
 # CapacityEstimate contract
 # ---------------------------------------------------------------------------
+
 
 class TestCapacityEstimateContract:
     def test_capacity_id_prefix(self) -> None:
@@ -510,9 +545,7 @@ class TestCapacityEstimateContract:
         comms = _make_comms()
         station = _make_station()
         pass_ = _make_pass(duration_s=10.0)
-        est = engine.estimate(
-            pass_, comms, station, weather_data_quality=SourceQuality.STALE
-        )
+        est = engine.estimate(pass_, comms, station, weather_data_quality=SourceQuality.STALE)
         assert est.weather_data_quality == "stale"
 
     def test_peak_rate_gte_average_rate(self) -> None:

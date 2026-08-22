@@ -28,9 +28,18 @@ from agcc.stations.filtering import filter_stations
 # ---------------------------------------------------------------------------
 
 _FULL_ASSUMPTIONS = [
-    "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
-    "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
-    "cost_model", "booking_cost", "cost_per_minute", "currency",
+    "latitude_deg",
+    "longitude_deg",
+    "altitude_m",
+    "supported_bands",
+    "max_downlink_rate_mbps",
+    "minimum_elevation_deg",
+    "setup_s",
+    "teardown_s",
+    "cost_model",
+    "booking_cost",
+    "cost_per_minute",
+    "currency",
 ]
 
 _FULL_PROVENANCE = FieldProvenance(assumptions=_FULL_ASSUMPTIONS)
@@ -91,6 +100,7 @@ def _make_catalog(stations: list[GroundStation]) -> StationCatalog:
 # Coordinate provenance validation
 # ---------------------------------------------------------------------------
 
+
 class TestCoordinateProvenance:
     def test_valid_with_all_coords_in_assumptions(self) -> None:
         s = _make_station()
@@ -118,30 +128,57 @@ class TestCoordinateProvenance:
 
     def test_missing_latitude_provenance_fails(self) -> None:
         fp = FieldProvenance(
-            assumptions=["longitude_deg", "altitude_m", "supported_bands",
-                         "max_downlink_rate_mbps", "minimum_elevation_deg",
-                         "setup_s", "teardown_s", "cost_model", "booking_cost",
-                         "cost_per_minute", "currency"]
+            assumptions=[
+                "longitude_deg",
+                "altitude_m",
+                "supported_bands",
+                "max_downlink_rate_mbps",
+                "minimum_elevation_deg",
+                "setup_s",
+                "teardown_s",
+                "cost_model",
+                "booking_cost",
+                "cost_per_minute",
+                "currency",
+            ]
         )
         with pytest.raises(ValidationError, match="latitude_deg"):
             _make_station(field_provenance=fp)
 
     def test_missing_longitude_provenance_fails(self) -> None:
         fp = FieldProvenance(
-            assumptions=["latitude_deg", "altitude_m", "supported_bands",
-                         "max_downlink_rate_mbps", "minimum_elevation_deg",
-                         "setup_s", "teardown_s", "cost_model", "booking_cost",
-                         "cost_per_minute", "currency"]
+            assumptions=[
+                "latitude_deg",
+                "altitude_m",
+                "supported_bands",
+                "max_downlink_rate_mbps",
+                "minimum_elevation_deg",
+                "setup_s",
+                "teardown_s",
+                "cost_model",
+                "booking_cost",
+                "cost_per_minute",
+                "currency",
+            ]
         )
         with pytest.raises(ValidationError, match="longitude_deg"):
             _make_station(field_provenance=fp)
 
     def test_missing_altitude_provenance_fails(self) -> None:
         fp = FieldProvenance(
-            assumptions=["latitude_deg", "longitude_deg", "supported_bands",
-                         "max_downlink_rate_mbps", "minimum_elevation_deg",
-                         "setup_s", "teardown_s", "cost_model", "booking_cost",
-                         "cost_per_minute", "currency"]
+            assumptions=[
+                "latitude_deg",
+                "longitude_deg",
+                "supported_bands",
+                "max_downlink_rate_mbps",
+                "minimum_elevation_deg",
+                "setup_s",
+                "teardown_s",
+                "cost_model",
+                "booking_cost",
+                "cost_per_minute",
+                "currency",
+            ]
         )
         with pytest.raises(ValidationError, match="altitude_m"):
             _make_station(field_provenance=fp)
@@ -153,10 +190,19 @@ class TestCoordinateProvenance:
     def test_mixed_source_and_assumption_valid(self) -> None:
         fp = FieldProvenance(
             sources={"latitude_deg": "catalog"},
-            assumptions=["longitude_deg", "altitude_m", "supported_bands",
-                         "max_downlink_rate_mbps", "minimum_elevation_deg",
-                         "setup_s", "teardown_s", "cost_model", "booking_cost",
-                         "cost_per_minute", "currency"],
+            assumptions=[
+                "longitude_deg",
+                "altitude_m",
+                "supported_bands",
+                "max_downlink_rate_mbps",
+                "minimum_elevation_deg",
+                "setup_s",
+                "teardown_s",
+                "cost_model",
+                "booking_cost",
+                "cost_per_minute",
+                "currency",
+            ],
         )
         s = _make_station(field_provenance=fp)
         assert s.latitude_deg == 48.0
@@ -165,10 +211,20 @@ class TestCoordinateProvenance:
         """A field appearing in both sources and assumptions must be rejected."""
         fp = FieldProvenance(
             sources={"latitude_deg": "survey"},
-            assumptions=["latitude_deg", "longitude_deg", "altitude_m",
-                         "supported_bands", "max_downlink_rate_mbps",
-                         "minimum_elevation_deg", "setup_s", "teardown_s",
-                         "cost_model", "booking_cost", "cost_per_minute", "currency"],
+            assumptions=[
+                "latitude_deg",
+                "longitude_deg",
+                "altitude_m",
+                "supported_bands",
+                "max_downlink_rate_mbps",
+                "minimum_elevation_deg",
+                "setup_s",
+                "teardown_s",
+                "cost_model",
+                "booking_cost",
+                "cost_per_minute",
+                "currency",
+            ],
         )
         with pytest.raises(ValidationError):
             _make_station(field_provenance=fp)
@@ -177,6 +233,7 @@ class TestCoordinateProvenance:
 # ---------------------------------------------------------------------------
 # Invalid coordinates
 # ---------------------------------------------------------------------------
+
 
 class TestInvalidCoordinates:
     def test_latitude_out_of_range(self) -> None:
@@ -281,6 +338,7 @@ class TestInvalidCoordinates:
 # None fields and planner eligibility
 # ---------------------------------------------------------------------------
 
+
 class TestPlannerEligibility:
     def test_eligible_when_bands_and_rate_set(self) -> None:
         s = _make_station()
@@ -293,9 +351,18 @@ class TestPlannerEligibility:
     def test_not_eligible_when_bands_none(self) -> None:
         """Station with supported_bands=None is not eligible."""
         fp = FieldProvenance(
-            assumptions=["latitude_deg", "longitude_deg", "altitude_m",
-                         "minimum_elevation_deg", "setup_s", "teardown_s",
-                         "cost_model", "booking_cost", "cost_per_minute", "currency"],
+            assumptions=[
+                "latitude_deg",
+                "longitude_deg",
+                "altitude_m",
+                "minimum_elevation_deg",
+                "setup_s",
+                "teardown_s",
+                "cost_model",
+                "booking_cost",
+                "cost_per_minute",
+                "currency",
+            ],
         )
         s = GroundStation(
             station_id="station_incomplete",
@@ -318,10 +385,19 @@ class TestPlannerEligibility:
     def test_not_eligible_when_rate_none(self) -> None:
         """Station with max_downlink_rate_mbps=None is not eligible."""
         fp = FieldProvenance(
-            assumptions=["latitude_deg", "longitude_deg", "altitude_m",
-                         "supported_bands", "minimum_elevation_deg", "setup_s",
-                         "teardown_s", "cost_model", "booking_cost",
-                         "cost_per_minute", "currency"],
+            assumptions=[
+                "latitude_deg",
+                "longitude_deg",
+                "altitude_m",
+                "supported_bands",
+                "minimum_elevation_deg",
+                "setup_s",
+                "teardown_s",
+                "cost_model",
+                "booking_cost",
+                "cost_per_minute",
+                "currency",
+            ],
         )
         s = GroundStation(
             station_id="station_norate",
@@ -347,9 +423,7 @@ class TestPlannerEligibility:
 
     def test_eligible_flag_preserved_in_catalog(self) -> None:
         eligible = _make_station(station_id="station_e1")
-        no_bands = _make_station(
-            station_id="station_nb1", supported_bands=frozenset()
-        )
+        no_bands = _make_station(station_id="station_nb1", supported_bands=frozenset())
         catalog = _make_catalog([eligible, no_bands])
         by_id = {s.station_id: s for s in catalog.stations}
         assert by_id["station_e1"].planner_eligible is True
@@ -359,6 +433,7 @@ class TestPlannerEligibility:
 # ---------------------------------------------------------------------------
 # Provenance preservation
 # ---------------------------------------------------------------------------
+
 
 class TestProvenancePreservation:
     def test_sources_preserved(self) -> None:
@@ -396,6 +471,7 @@ class TestProvenancePreservation:
 # ---------------------------------------------------------------------------
 # StationCatalog metadata
 # ---------------------------------------------------------------------------
+
 
 class TestCatalogMetadata:
     def test_catalog_metadata_survives_roundtrip(self) -> None:
@@ -435,6 +511,7 @@ class TestCatalogMetadata:
 # Filter order
 # ---------------------------------------------------------------------------
 
+
 class TestFilterOrder:
     def test_disabled_station_excluded(self) -> None:
         s = _make_station(station_id="station_a1", enabled=False)
@@ -443,9 +520,7 @@ class TestFilterOrder:
         assert result == []
 
     def test_non_planner_eligible_excluded(self) -> None:
-        s = _make_station(
-            station_id="station_a1", supported_bands=frozenset()
-        )
+        s = _make_station(station_id="station_a1", supported_bands=frozenset())
         sel = StationSelection(allow_all_eligible=True)
         result = filter_stations(_make_catalog([s]), sel)
         assert result == []
@@ -453,9 +528,18 @@ class TestFilterOrder:
     def test_incomplete_station_excluded_by_filter(self) -> None:
         """A station with supported_bands=None is excluded by filter but present in catalog."""
         fp = FieldProvenance(
-            assumptions=["latitude_deg", "longitude_deg", "altitude_m",
-                         "minimum_elevation_deg", "setup_s", "teardown_s",
-                         "cost_model", "booking_cost", "cost_per_minute", "currency"],
+            assumptions=[
+                "latitude_deg",
+                "longitude_deg",
+                "altitude_m",
+                "minimum_elevation_deg",
+                "setup_s",
+                "teardown_s",
+                "cost_model",
+                "booking_cost",
+                "cost_per_minute",
+                "currency",
+            ],
         )
         s = GroundStation(
             station_id="station_incomplete",
@@ -533,9 +617,7 @@ class TestFilterOrder:
 
     def test_filter_order_disabled_before_eligibility(self) -> None:
         """A disabled station with no bands must be dropped at the enabled step."""
-        s = _make_station(
-            station_id="station_a1", enabled=False, supported_bands=frozenset()
-        )
+        s = _make_station(station_id="station_a1", enabled=False, supported_bands=frozenset())
         sel = StationSelection(allow_all_eligible=True)
         result = filter_stations(_make_catalog([s]), sel)
         assert result == []
@@ -555,12 +637,15 @@ class TestFilterOrder:
 # Deterministic catalog sorting
 # ---------------------------------------------------------------------------
 
+
 class TestDeterministicSorting:
     def test_catalog_sorted_by_station_id(self) -> None:
         """load_catalog_from_file must sort stations by station_id."""
         demo_path = (
             Path(__file__).resolve().parent.parent.parent.parent
-            / "data" / "catalogs" / "stations.demo.json"
+            / "data"
+            / "catalogs"
+            / "stations.demo.json"
         )
         catalog = load_catalog_from_file(demo_path)
         ids = [s.station_id for s in catalog.stations]
@@ -569,7 +654,9 @@ class TestDeterministicSorting:
     def test_catalog_loaded_twice_is_identical(self) -> None:
         demo_path = (
             Path(__file__).resolve().parent.parent.parent.parent
-            / "data" / "catalogs" / "stations.demo.json"
+            / "data"
+            / "catalogs"
+            / "stations.demo.json"
         )
         c1 = load_catalog_from_file(demo_path)
         c2 = load_catalog_from_file(demo_path)
@@ -578,7 +665,9 @@ class TestDeterministicSorting:
     def test_demo_has_12_stations(self) -> None:
         demo_path = (
             Path(__file__).resolve().parent.parent.parent.parent
-            / "data" / "catalogs" / "stations.demo.json"
+            / "data"
+            / "catalogs"
+            / "stations.demo.json"
         )
         catalog = load_catalog_from_file(demo_path)
         assert len(catalog.stations) == 12
@@ -587,21 +676,23 @@ class TestDeterministicSorting:
         """Every station in demo catalog must have all 12 fields in assumptions."""
         demo_path = (
             Path(__file__).resolve().parent.parent.parent.parent
-            / "data" / "catalogs" / "stations.demo.json"
+            / "data"
+            / "catalogs"
+            / "stations.demo.json"
         )
         catalog = load_catalog_from_file(demo_path)
         required = set(_FULL_ASSUMPTIONS)
         for s in catalog.stations:
             covered = set(s.field_provenance.assumptions) | set(s.field_provenance.sources.keys())
             missing = required - covered
-            assert not missing, (
-                f"Station {s.station_id} missing provenance for: {missing}"
-            )
+            assert not missing, f"Station {s.station_id} missing provenance for: {missing}"
 
     def test_demo_catalog_metadata(self) -> None:
         demo_path = (
             Path(__file__).resolve().parent.parent.parent.parent
-            / "data" / "catalogs" / "stations.demo.json"
+            / "data"
+            / "catalogs"
+            / "stations.demo.json"
         )
         catalog = load_catalog_from_file(demo_path)
         assert catalog.catalog_id == "catalog_demo_v1"
@@ -612,7 +703,9 @@ class TestDeterministicSorting:
         """Template catalog loads, has 1 station, and it is not planner eligible."""
         template_path = (
             Path(__file__).resolve().parent.parent.parent.parent
-            / "data" / "catalogs" / "stations.template.json"
+            / "data"
+            / "catalogs"
+            / "stations.template.json"
         )
         catalog = load_catalog_from_file(template_path)
         assert len(catalog.stations) == 1
@@ -624,6 +717,7 @@ class TestDeterministicSorting:
 # ---------------------------------------------------------------------------
 # Placeholder failure
 # ---------------------------------------------------------------------------
+
 
 class TestNotConfiguredPlaceholder:
     def test_raises_external_data_unavailable(self) -> None:
@@ -645,6 +739,7 @@ class TestNotConfiguredPlaceholder:
 # ---------------------------------------------------------------------------
 # Cost model
 # ---------------------------------------------------------------------------
+
 
 class TestCostModel:
     def test_per_minute_model(self) -> None:

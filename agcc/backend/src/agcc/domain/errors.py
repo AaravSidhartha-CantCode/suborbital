@@ -29,6 +29,7 @@ class DomainError(BaseModel):
 # Specific constructors
 # ---------------------------------------------------------------------------
 
+
 def validation_error(message: str, entity_refs: dict[str, str] | None = None) -> DomainError:
     return DomainError(
         code="VALIDATION_ERROR",

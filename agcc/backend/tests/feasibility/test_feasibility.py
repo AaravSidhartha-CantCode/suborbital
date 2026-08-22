@@ -39,11 +39,22 @@ _NOW = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
 _DEADLINE = _NOW + timedelta(hours=6)
 _MAX_BUDGET = 500.0
 
-_FULL_PROV = FieldProvenance(assumptions=[
-    "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
-    "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
-    "cost_model", "booking_cost", "cost_per_minute", "currency",
-])
+_FULL_PROV = FieldProvenance(
+    assumptions=[
+        "latitude_deg",
+        "longitude_deg",
+        "altitude_m",
+        "supported_bands",
+        "max_downlink_rate_mbps",
+        "minimum_elevation_deg",
+        "setup_s",
+        "teardown_s",
+        "cost_model",
+        "booking_cost",
+        "cost_per_minute",
+        "currency",
+    ]
+)
 
 
 def _make_station(
@@ -110,6 +121,7 @@ def _make_capacity(
     quality: str = "verified",
 ) -> CapacityEstimate:
     from agcc.capacity.engine import _capacity_id
+
     return CapacityEstimate(
         capacity_id=_capacity_id(pass_id),
         pass_id=pass_id,
@@ -163,6 +175,7 @@ def _checker() -> FeasibilityChecker:
 # Acceptance 1: exact target → POTENTIALLY_FEASIBLE
 # ---------------------------------------------------------------------------
 
+
 class TestExactTarget:
     def test_capacity_exactly_meets_requirement(self) -> None:
         required = 100.0
@@ -181,7 +194,9 @@ class TestExactTarget:
     def test_multiple_passes_sum_to_exact(self) -> None:
         r1 = _make_record(pass_id="pass_t001", start_offset_h=1.0, capacity_mb=50.0)
         r2 = _make_record(
-            pass_id="pass_t002", start_offset_h=2.0, capacity_mb=50.0,
+            pass_id="pass_t002",
+            start_offset_h=2.0,
+            capacity_mb=50.0,
             station_id="station_test02",
         )
         report = _checker().check(
@@ -199,6 +214,7 @@ class TestExactTarget:
 # ---------------------------------------------------------------------------
 # Acceptance 2: shortfall → INFEASIBLE_CAPACITY
 # ---------------------------------------------------------------------------
+
 
 class TestCapacityShortfall:
     def test_1mb_below_required_is_infeasible(self) -> None:
@@ -235,6 +251,7 @@ class TestCapacityShortfall:
 # Acceptance 3: insufficient deadline → INFEASIBLE_DEADLINE
 # ---------------------------------------------------------------------------
 
+
 class TestInsufficientDeadline:
     def test_all_passes_after_deadline_infeasible(self) -> None:
         # Deadline is 30 min from now; pass starts at hour 1 → after deadline
@@ -257,12 +274,16 @@ class TestInsufficientDeadline:
         deadline = _NOW + timedelta(hours=2)
         # Pass 1 at 1h: 40 MB; pass 2 at 3h (after deadline): 100 MB
         r1 = _make_record(
-            pass_id="pass_t001", start_offset_h=1.0, capacity_mb=40.0,
+            pass_id="pass_t001",
+            start_offset_h=1.0,
+            capacity_mb=40.0,
             deadline=deadline,
         )
         # Pass 2 is after deadline → will be rejected by builder
         r2 = _make_record(
-            pass_id="pass_t002", start_offset_h=3.0, capacity_mb=100.0,
+            pass_id="pass_t002",
+            start_offset_h=3.0,
+            capacity_mb=100.0,
             station_id="station_test02",
             deadline=deadline,
         )
@@ -282,6 +303,7 @@ class TestInsufficientDeadline:
 # ---------------------------------------------------------------------------
 # Acceptance 4: insufficient budget → INFEASIBLE_BUDGET
 # ---------------------------------------------------------------------------
+
 
 class TestInsufficientBudget:
     def test_cheapest_feasible_set_exceeds_budget(self) -> None:
@@ -330,6 +352,7 @@ class TestInsufficientBudget:
 # Acceptance 5: excluded station restoration suggestion
 # ---------------------------------------------------------------------------
 
+
 class TestExcludedStationSuggestion:
     def test_excluded_stations_in_suggestions(self) -> None:
         # One eligible pass
@@ -369,6 +392,7 @@ class TestExcludedStationSuggestion:
 # ---------------------------------------------------------------------------
 # Acceptance 6: deterministic money rounding
 # ---------------------------------------------------------------------------
+
 
 class TestMoneyRounding:
     def test_billable_minutes_uses_ceiling(self) -> None:
@@ -422,6 +446,7 @@ class TestMoneyRounding:
 # Band mismatch → INCOMPATIBLE_BAND rejection code
 # ---------------------------------------------------------------------------
 
+
 class TestBandMismatch:
     def test_station_s_band_satellite_x_band_rejected(self) -> None:
         record = _make_record(band=Band.S)  # satellite uses X
@@ -437,6 +462,7 @@ class TestBandMismatch:
 # Disabled station → STATION_UNAVAILABLE
 # ---------------------------------------------------------------------------
 
+
 class TestStationUnavailable:
     def test_disabled_station_rejected(self) -> None:
         record = _make_record(station_enabled=False)
@@ -447,6 +473,7 @@ class TestStationUnavailable:
 # ---------------------------------------------------------------------------
 # Relaxation suggestions detail
 # ---------------------------------------------------------------------------
+
 
 class TestRelaxationSuggestions:
     def test_volume_reduction_suggested_when_capacity_short(self) -> None:
@@ -480,7 +507,7 @@ class TestRelaxationSuggestions:
             records=[record],
         )
         # Record is ineligible (BUDGET_EXCEEDED), capacity = infeasible_capacity
-        assert report.status == FeasibilityStatus.INFEASIBLE_CAPACITY
+        assert report.status == FeasibilityStatus.INFEASIBLE_BUDGET
 
     def test_feasibility_report_preserves_all_records(self) -> None:
         r1 = _make_record(pass_id="pass_t001", capacity_mb=100.0)
@@ -500,6 +527,7 @@ class TestRelaxationSuggestions:
 # ---------------------------------------------------------------------------
 # Earliest completion
 # ---------------------------------------------------------------------------
+
 
 class TestEarliestCompletion:
     def test_earliest_completion_set_when_feasible(self) -> None:
@@ -527,13 +555,16 @@ class TestEarliestCompletion:
         )
         assert report.earliest_possible_completion_at is None
 
+
 # ---------------------------------------------------------------------------
 # DownlinkMission domain contract tests (Task 09 fields)
 # ---------------------------------------------------------------------------
 
+
 class TestDownlinkMissionContract:
     def test_release_at_before_deadline_at_accepted(self) -> None:
         from agcc.domain.mission import DownlinkMission
+
         m = DownlinkMission(
             mission_id="mission_task09a",
             name="T09",
@@ -547,6 +578,7 @@ class TestDownlinkMissionContract:
         from pydantic import ValidationError
 
         from agcc.domain.mission import DownlinkMission
+
         with pytest.raises(ValidationError, match="release_at"):
             DownlinkMission(
                 mission_id="mission_task09b",
@@ -560,6 +592,7 @@ class TestDownlinkMissionContract:
         from pydantic import ValidationError
 
         from agcc.domain.mission import DownlinkMission
+
         with pytest.raises(ValidationError, match="release_at"):
             DownlinkMission(
                 mission_id="mission_task09c",
@@ -573,6 +606,7 @@ class TestDownlinkMissionContract:
         from pydantic import ValidationError
 
         from agcc.domain.mission import DownlinkMission
+
         naive = _NOW.replace(tzinfo=None)
         with pytest.raises(ValidationError, match="naive"):
             DownlinkMission(
@@ -585,6 +619,7 @@ class TestDownlinkMissionContract:
 
     def test_deadline_at_serializes_with_z(self) -> None:
         from agcc.domain.mission import DownlinkMission
+
         m = DownlinkMission(
             mission_id="mission_task09e",
             name="T09",
@@ -600,6 +635,7 @@ class TestDownlinkMissionContract:
 class TestScenarioConstraintsContract:
     def test_maximum_budget_decimal_accepted(self) -> None:
         from agcc.domain.mission import ScenarioConstraints
+
         sc = ScenarioConstraints(maximum_budget=Decimal("1500.00"), currency="USD")
         assert sc.maximum_budget == Decimal("1500.00")
 
@@ -607,16 +643,19 @@ class TestScenarioConstraintsContract:
         from pydantic import ValidationError
 
         from agcc.domain.mission import ScenarioConstraints
+
         with pytest.raises(ValidationError):
             ScenarioConstraints(maximum_budget=Decimal("100"), currency="")
 
     def test_planning_preference_defaults_to_balanced(self) -> None:
         from agcc.domain.mission import PlanningPreference, ScenarioConstraints
+
         sc = ScenarioConstraints(maximum_budget=Decimal("100"), currency="USD")
         assert sc.planning_preference == PlanningPreference.BALANCED
 
     def test_planning_preference_fastest(self) -> None:
         from agcc.domain.mission import PlanningPreference, ScenarioConstraints
+
         sc = ScenarioConstraints(
             maximum_budget=Decimal("100"),
             currency="EUR",
@@ -626,6 +665,7 @@ class TestScenarioConstraintsContract:
 
     def test_allow_additional_proposals_default_false(self) -> None:
         from agcc.domain.mission import ScenarioConstraints
+
         sc = ScenarioConstraints(maximum_budget=Decimal("0"), currency="USD")
         assert sc.allow_additional_contact_proposals is False
 
@@ -633,6 +673,7 @@ class TestScenarioConstraintsContract:
         from pydantic import ValidationError
 
         from agcc.domain.mission import ScenarioConstraints
+
         with pytest.raises(ValidationError):
             ScenarioConstraints(maximum_budget=Decimal("-1"), currency="USD")
 
@@ -640,6 +681,7 @@ class TestScenarioConstraintsContract:
 # ---------------------------------------------------------------------------
 # One-byte-equivalent shortfall acceptance test
 # ---------------------------------------------------------------------------
+
 
 class TestOneByteshortfall:
     """Capacity that is a tiny fraction below the required target → INFEASIBLE_CAPACITY."""

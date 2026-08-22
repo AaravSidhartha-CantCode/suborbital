@@ -5,18 +5,20 @@ Uses the canonical_payload_hash algorithm:
   - json.dumps with sort_keys=True, separators=(',',':'), ensure_ascii=True
   - SHA-256 hex digest
 """
+
 import hashlib
 import json
-import sys
 from pathlib import Path
 
 BASE = Path(__file__).parent.parent.parent.parent / "data" / "fixtures"
+
 
 def canonical_payload_hash(payload: dict) -> str:
     copy = dict(payload)
     copy.pop("raw_payload_hash", None)
     serialized = json.dumps(copy, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
 
 def update_weather_file(path: Path) -> int:
     raw = json.loads(path.read_text(encoding="utf-8"))
@@ -28,6 +30,7 @@ def update_weather_file(path: Path) -> int:
     path.write_text(json.dumps(raw, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     return count
 
+
 def update_space_weather_file(path: Path) -> int:
     raw = json.loads(path.read_text(encoding="utf-8"))
     count = 0
@@ -36,6 +39,7 @@ def update_space_weather_file(path: Path) -> int:
         count += 1
     path.write_text(json.dumps(raw, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     return count
+
 
 weather_files = [
     BASE / "weather" / "weather_clear.json",

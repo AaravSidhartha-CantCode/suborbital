@@ -107,6 +107,7 @@ def _gmst_rad(dt: datetime) -> float:
 # Rotation helper
 # ---------------------------------------------------------------------------
 
+
 def _eci_to_ecef(
     pos_eci: tuple[float, float, float],
     vel_eci: tuple[float, float, float],
@@ -158,6 +159,7 @@ def _ecef_to_geodetic(
 # ---------------------------------------------------------------------------
 # Propagation core
 # ---------------------------------------------------------------------------
+
 
 def _propagate_one(
     orbit: CustomCircularOrbit,
@@ -226,6 +228,7 @@ def _propagate_one(
 # Protocol
 # ---------------------------------------------------------------------------
 
+
 class OrbitPropagator(Protocol):
     """Abstract interface for orbit propagators."""
 
@@ -247,6 +250,7 @@ class OrbitPropagator(Protocol):
 # ---------------------------------------------------------------------------
 # Concrete implementation
 # ---------------------------------------------------------------------------
+
 
 class CircularKeplerPropagator:
     """Deterministic two-body circular Kepler propagator.
@@ -292,5 +296,6 @@ class CircularKeplerPropagator:
                 )
             )
             from datetime import timedelta  # local import to avoid top-level cycle
+
             t = t + timedelta(seconds=step_s)
         return points

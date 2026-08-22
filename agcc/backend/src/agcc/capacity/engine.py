@@ -11,8 +11,10 @@ from __future__ import annotations
 import hashlib
 import math
 from datetime import datetime, timedelta, timezone
+from typing import Callable
 
 from agcc.capacity.attenuation import (
+    ConfiguredWeatherAttenuationModel,
     NoWeatherAttenuationModel,
     WeatherAttenuationModel,
 )
@@ -76,10 +78,12 @@ class CapacityEngine:
         self,
         attenuation_model: WeatherAttenuationModel,
         model_version: str = _CAPACITY_MODEL_VERSION,
+        elevation_provider: Callable[[CandidatePass, datetime], float] | None = None,
     ) -> None:
         self._attenuation = attenuation_model
         self._model_version = model_version
         self._using_no_weather = isinstance(attenuation_model, NoWeatherAttenuationModel)
+        self._elevation_provider = elevation_provider
 
     def estimate(
         self,
@@ -118,10 +122,17 @@ class CapacityEngine:
                 f"station band support={station.supported_bands}, "
                 f"satellite band={satellite_comms.band}"
             )
+        if (
+            isinstance(self._attenuation, ConfiguredWeatherAttenuationModel)
+            and weather_data_quality == SourceQuality.UNAVAILABLE
+        ):
+            raise ValueError("Weather data is unavailable; neutral weather is not permitted")
 
         assumptions: list[str] = []
         if self._using_no_weather:
             assumptions.append(NoWeatherAttenuationModel.ASSUMPTION_LABEL)
+        if self._elevation_provider is None:
+            assumptions.append("InterpolatedPassElevation")
 
         # is_capacity_eligible guards None; assert for type narrowing
         assert station.max_downlink_rate_mbps is not None
@@ -165,7 +176,11 @@ class CapacityEngine:
             sample_mid_ts = t.timestamp() + sample_duration / 2.0
             sample_mid = datetime.fromtimestamp(sample_mid_ts, tz=timezone.utc)
 
-            elevation_at_sample = _interpolate_elevation(pass_, sample_mid)
+            elevation_at_sample = (
+                self._elevation_provider(pass_, sample_mid)
+                if self._elevation_provider is not None
+                else _interpolate_elevation(pass_, sample_mid)
+            )
             elevation_rad = math.radians(elevation_at_sample)
             elevation_factor = max(0.0, min(1.0, math.sin(elevation_rad)))
 
@@ -173,6 +188,10 @@ class CapacityEngine:
                 satellite_comms.carrier_frequency_ghz,
                 elevation_at_sample,
                 precipitation_mm_per_hr,
+                latitude_deg=station.latitude_deg,
+                longitude_deg=station.longitude_deg,
+                station_altitude_m=station.altitude_m,
+                polarization=satellite_comms.polarization,
             )
 
             effective_rate = (
@@ -196,9 +215,7 @@ class CapacityEngine:
                 break
 
         sample_count = len(sample_rates)
-        average_effective_rate_mbps = (
-            sum(sample_rates) / sample_count if sample_count > 0 else 0.0
-        )
+        average_effective_rate_mbps = sum(sample_rates) / sample_count if sample_count > 0 else 0.0
 
         return CapacityEstimate(
             capacity_id=_capacity_id(pass_.pass_id),
@@ -211,6 +228,41 @@ class CapacityEngine:
             model_version=self._model_version,
             assumptions=assumptions,
             sample_count=sample_count,
+        )
+
+    def effective_rate_at(
+        self,
+        pass_: CandidatePass,
+        satellite_comms: SatelliteCommunications,
+        station: GroundStation,
+        at: datetime,
+        *,
+        precipitation_mm_per_hr: float,
+    ) -> float:
+        """Return the Task 08 modeled rate at one simulation instant."""
+        if not is_capacity_eligible(satellite_comms, station):
+            raise ValueError(f"Pass {pass_.pass_id} is not capacity-eligible")
+        assert station.max_downlink_rate_mbps is not None
+        elevation_deg = (
+            self._elevation_provider(pass_, at)
+            if self._elevation_provider is not None
+            else _interpolate_elevation(pass_, at)
+        )
+        elevation_factor = max(0.0, min(1.0, math.sin(math.radians(elevation_deg))))
+        weather_factor = self._attenuation.factor(
+            satellite_comms.carrier_frequency_ghz,
+            elevation_deg,
+            precipitation_mm_per_hr,
+            latitude_deg=station.latitude_deg,
+            longitude_deg=station.longitude_deg,
+            station_altitude_m=station.altitude_m,
+            polarization=satellite_comms.polarization,
+        )
+        return (
+            min(satellite_comms.max_downlink_rate_mbps, station.max_downlink_rate_mbps)
+            * satellite_comms.protocol_efficiency
+            * elevation_factor
+            * weather_factor
         )
 
 

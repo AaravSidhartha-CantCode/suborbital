@@ -281,20 +281,17 @@ class DispatchBuilder:
 
         if plan.status != PlanStatus.FEASIBLE:
             raise ValueError(
-                f"Cannot build DispatchPlan from non-feasible plan "
-                f"(status={plan.status})"
+                f"Cannot build DispatchPlan from non-feasible plan (status={plan.status})"
             )
 
         mission_id = plan.mission_id
         required_mb = plan.required_volume_mb
 
         # 1. Create fragment queue
-        all_fragments = _split_volume_into_fragments(mission_id, required_mb)
+        all_fragments = _split_volume_for_contacts(mission_id, required_mb, plan.contacts)
 
         # 2. Assign fragments to contacts chronologically
-        allocations, assigned_fragments = _assign_to_contacts(
-            all_fragments, plan.contacts
-        )
+        allocations, assigned_fragments = _assign_to_contacts(all_fragments, plan.contacts)
 
         # Fragments map: fragment_id → Fragment (possibly in ASSIGNED state)
         frag_map = {f.fragment_id: f for f in all_fragments}
@@ -314,12 +311,8 @@ class DispatchBuilder:
 
         # 3. Compute summary totals
         delivered_mb = 0.0
-        assigned_mb = sum(
-            f.volume_mb for f in fragments if f.state == FragmentState.ASSIGNED
-        )
-        queued_mb = sum(
-            f.volume_mb for f in fragments if f.state == FragmentState.QUEUED
-        )
+        assigned_mb = sum(f.volume_mb for f in fragments if f.state == FragmentState.ASSIGNED)
+        queued_mb = sum(f.volume_mb for f in fragments if f.state == FragmentState.QUEUED)
 
         # 4. Predicted completion: end_at of last contact that has an allocation
         predicted_completion = _predicted_completion(allocations, plan.contacts)
@@ -424,11 +417,7 @@ class DispatchRedistributor:
 
         # 5. Rebuild fragment list and totals
         all_frags = list(fragments_mut.values())
-        delivered_mb = sum(
-            f.volume_mb
-            for f in all_frags
-            if f.state == FragmentState.DELIVERED
-        )
+        delivered_mb = sum(f.volume_mb for f in all_frags if f.state == FragmentState.DELIVERED)
         assigned_mb = sum(
             f.volume_mb
             for f in all_frags
@@ -507,28 +496,53 @@ def _assign_to_contacts(
                 current_frag = next(frag_iter, None)
                 frag_remaining = current_frag.volume_mb if current_frag else 0.0
             else:
-                # Fragment partially fits — we do NOT split at this stage;
-                # the last fragment in the queue will be naturally sized <= 25 MB
-                # and fits in some contact.  If a fragment is larger than a
-                # contact's budget that's a data consistency error; just assign
-                # as much as fits by treating the whole fragment as the fill.
-                contact_frags.append(current_frag.fragment_id)
-                assigned[current_frag.fragment_id] = contact.contact_id
-                filled += frag_remaining  # may slightly overfill; clamped below
-                current_frag = next(frag_iter, None)
-                frag_remaining = current_frag.volume_mb if current_frag else 0.0
-                break
+                raise ValueError(
+                    "Fragment crosses a contact boundary; fragmentation is inconsistent"
+                )
 
         allocations.append(
             ContactAllocation(
                 contact_id=contact.contact_id,
-                planned_volume_mb=contact.allocated_volume_mb,
+                planned_volume_mb=(
+                    contact.reserved_capacity_mb
+                    if contact.reserved_capacity_mb is not None
+                    else contact.allocated_volume_mb
+                ),
                 assigned_volume_mb=min(filled, contact.allocated_volume_mb),
                 fragment_ids=contact_frags,
             )
         )
 
     return allocations, assigned
+
+
+def _split_volume_for_contacts(
+    mission_id: str,
+    total_mb: float,
+    contacts: Sequence[PlannedContact],
+) -> list[Fragment]:
+    """Fragment data without crossing an initial contact boundary."""
+    fragments: list[Fragment] = []
+    remaining = total_mb
+    sequence = 0
+    for contact in sorted(contacts, key=lambda item: item.start_at):
+        contact_remaining = min(contact.allocated_volume_mb, remaining)
+        while contact_remaining > 1e-9:
+            volume = min(MAX_FRAGMENT_MB, contact_remaining)
+            fragments.append(
+                Fragment(
+                    fragment_id=_fragment_id(mission_id, sequence),
+                    mission_id=mission_id,
+                    sequence_number=sequence,
+                    volume_mb=volume,
+                )
+            )
+            sequence += 1
+            contact_remaining -= volume
+            remaining -= volume
+    if remaining > 1e-6:
+        fragments.extend(_split_volume_into_fragments(mission_id, remaining, sequence))
+    return fragments
 
 
 def _find_alloc_index(dispatch: DispatchPlan, contact_id: str) -> int | None:
@@ -574,23 +588,30 @@ def _settle_contact_fragments(
                 parent_fragment_id=frag.parent_fragment_id,
             )
             remaining_delivered -= frag.volume_mb
-        else:
-            # Partial or no delivery: mark PARTIAL (if some bytes arrived) or QUEUED.
-            new_state = (
-                FragmentState.PARTIAL if remaining_delivered > 1e-9
-                else FragmentState.QUEUED
+        elif remaining_delivered > 1e-9:
+            delivered_part = remaining_delivered
+            remainder_volume = frag.volume_mb - delivered_part
+            fragments_mut[fid] = frag.model_copy(
+                update={"volume_mb": delivered_part, "state": FragmentState.DELIVERED}
             )
-            fragments_mut[fid] = Fragment(
-                fragment_id=frag.fragment_id,
+            next_sequence = max(f.sequence_number for f in fragments_mut.values()) + 1
+            remainder = Fragment(
+                fragment_id=_fragment_id(frag.mission_id, next_sequence),
                 mission_id=frag.mission_id,
-                sequence_number=frag.sequence_number,
-                volume_mb=frag.volume_mb,
-                state=new_state,
-                assigned_contact_id=None,  # no longer claimed by this contact
-                parent_fragment_id=frag.parent_fragment_id,
+                sequence_number=next_sequence,
+                volume_mb=remainder_volume,
+                state=FragmentState.PARTIAL,
+                parent_fragment_id=frag.parent_fragment_id or frag.fragment_id,
             )
+            fragments_mut[remainder.fragment_id] = remainder
+            undelivered.append(remainder)
             remaining_delivered = 0.0
-            undelivered.append(fragments_mut[fid])
+        else:
+            queued = frag.model_copy(
+                update={"state": FragmentState.QUEUED, "assigned_contact_id": None}
+            )
+            fragments_mut[fid] = queued
+            undelivered.append(queued)
 
     return undelivered
 
@@ -645,8 +666,28 @@ def _redistribute(
                     parent_fragment_id=frag.parent_fragment_id,
                 )
             else:
-                # Fragment larger than spare — leave for next contact
-                still_needed.append(frag)
+                assigned_piece = frag.model_copy(
+                    update={
+                        "volume_mb": spare,
+                        "state": FragmentState.ASSIGNED,
+                        "assigned_contact_id": alloc.contact_id,
+                    }
+                )
+                fragments_mut[frag.fragment_id] = assigned_piece
+                new_frag_ids.append(frag.fragment_id)
+                added_vol += spare
+                next_sequence = max(item.sequence_number for item in fragments_mut.values()) + 1
+                remainder = Fragment(
+                    fragment_id=_fragment_id(frag.mission_id, next_sequence),
+                    mission_id=frag.mission_id,
+                    sequence_number=next_sequence,
+                    volume_mb=frag.volume_mb - spare,
+                    state=FragmentState.PARTIAL,
+                    parent_fragment_id=frag.parent_fragment_id or frag.fragment_id,
+                )
+                fragments_mut[remainder.fragment_id] = remainder
+                still_needed.append(remainder)
+                spare = 0.0
 
         rem_queue = still_needed
 

@@ -15,6 +15,12 @@ class Band(str, Enum):
     VHF = "VHF"
 
 
+class LinkPolarization(str, Enum):
+    HORIZONTAL = "horizontal"
+    VERTICAL = "vertical"
+    CIRCULAR = "circular"
+
+
 class PassStatus(str, Enum):
     CANDIDATE = "candidate"
     ELIGIBLE = "eligible"
@@ -55,6 +61,10 @@ class EventType(str, Enum):
 
 
 class AnomalyType(str, Enum):
+    STATION_OUTAGE = "station_outage"
+    RATE_DEGRADATION = "rate_degradation"
+    HEAVY_RAIN_SCENARIO = "heavy_rain_scenario"
+    CONTACT_DELAY = "contact_delay"
     WEATHER = "weather"
     LINK_DEGRADATION = "link_degradation"
     STATION_UNAVAILABLE = "station_unavailable"
@@ -63,6 +73,8 @@ class AnomalyType(str, Enum):
 
 
 class ProposalStatus(str, Enum):
+    NEEDS_CLARIFICATION = "needs_clarification"
+    CONFIRMED = "confirmed"
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"

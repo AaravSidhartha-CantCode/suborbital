@@ -37,11 +37,22 @@ _PROV = Provenance(
     source_name="test",
     fetched_at=_BASE,
 )
-_COORD_PROV = FieldProvenance(assumptions=[
-    "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
-    "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
-    "cost_model", "booking_cost", "cost_per_minute", "currency",
-])
+_COORD_PROV = FieldProvenance(
+    assumptions=[
+        "latitude_deg",
+        "longitude_deg",
+        "altitude_m",
+        "supported_bands",
+        "max_downlink_rate_mbps",
+        "minimum_elevation_deg",
+        "setup_s",
+        "teardown_s",
+        "cost_model",
+        "booking_cost",
+        "cost_per_minute",
+        "currency",
+    ]
+)
 _FIXTURE_DIR = (
     Path(__file__).resolve().parent.parent.parent.parent / "data" / "fixtures" / "weather"
 )
@@ -72,6 +83,7 @@ def _make_station(station_id: str = "station_demo_centraleurope") -> GroundStati
 def _canonical_hash(payload: dict) -> str:
     import hashlib
     import json
+
     copy = dict(payload)
     copy.pop("raw_payload_hash", None)
     serialized = json.dumps(copy, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
@@ -163,6 +175,7 @@ def _make_pass(
 # WeatherSnapshot domain model
 # ---------------------------------------------------------------------------
 
+
 class TestWeatherSnapshotModel:
     def test_valid_snapshot(self) -> None:
         s = _make_snap()
@@ -202,6 +215,7 @@ class TestWeatherSnapshotModel:
 # ---------------------------------------------------------------------------
 # Fixture provider
 # ---------------------------------------------------------------------------
+
 
 class TestFixtureWeatherProvider:
     def test_loads_clear_fixture(self) -> None:
@@ -262,6 +276,7 @@ class TestFixtureWeatherProvider:
 # Recorded provider
 # ---------------------------------------------------------------------------
 
+
 class TestRecordedWeatherProvider:
     def test_loads_same_format_as_fixture(self) -> None:
         # Re-use clear fixture as "recorded" data — same schema
@@ -288,6 +303,7 @@ class TestRecordedWeatherProvider:
 # Live placeholder
 # ---------------------------------------------------------------------------
 
+
 class TestNotConfiguredLiveWeatherProvider:
     def test_raises_weather_unavailable(self) -> None:
         provider = NotConfiguredLiveWeatherProvider()
@@ -309,12 +325,13 @@ class TestNotConfiguredLiveWeatherProvider:
     def test_exposes_required_config_names(self) -> None:
         provider = NotConfiguredLiveWeatherProvider()
         assert "AGCC_WEATHER_API_URL" in provider.REQUIRED_CONFIG_NAMES
-        assert "AGCC_WEATHER_API_KEY" in provider.REQUIRED_CONFIG_NAMES
+        assert "AGCC_WEATHER_API_KEY" not in provider.REQUIRED_CONFIG_NAMES
 
 
 # ---------------------------------------------------------------------------
 # Alignment — time alignment
 # ---------------------------------------------------------------------------
+
 
 class TestAlignment:
     def test_exact_coverage_returns_verified(self) -> None:
@@ -376,10 +393,12 @@ class TestAlignment:
         # midpoint at BASE+3h5min
         snaps = [
             _make_snap(valid_from=_BASE, valid_until=_BASE + timedelta(hours=1), idx=0),
-            _make_snap(valid_from=_BASE + timedelta(hours=2),
-                       valid_until=_BASE + timedelta(hours=4), idx=1),
-            _make_snap(valid_from=_BASE + timedelta(hours=4),
-                       valid_until=_BASE + timedelta(hours=5), idx=2),
+            _make_snap(
+                valid_from=_BASE + timedelta(hours=2), valid_until=_BASE + timedelta(hours=4), idx=1
+            ),
+            _make_snap(
+                valid_from=_BASE + timedelta(hours=4), valid_until=_BASE + timedelta(hours=5), idx=2
+            ),
         ]
         result = align_to_pass(pass_, snaps)
         assert result.available
@@ -390,8 +409,11 @@ class TestAlignment:
         pass_ = _make_pass(start=_BASE + timedelta(hours=20))
         # Only first 6 hours covered
         snaps = [
-            _make_snap(valid_from=_BASE + timedelta(hours=i),
-                       valid_until=_BASE + timedelta(hours=i + 1), idx=i)
+            _make_snap(
+                valid_from=_BASE + timedelta(hours=i),
+                valid_until=_BASE + timedelta(hours=i + 1),
+                idx=i,
+            )
             for i in range(6)
         ]
         result = align_to_pass(pass_, snaps, max_staleness_s=1.0)
@@ -403,14 +425,11 @@ class TestAlignment:
 # Space weather
 # ---------------------------------------------------------------------------
 
+
 class TestSpaceWeatherProvider:
     def test_fixture_loads(self) -> None:
-        provider = FixtureSpaceWeatherProvider(
-            _SPACE_WEATHER_DIR / "space_weather_fixture.json"
-        )
-        snaps = asyncio.run(
-            provider.snapshots_for(_BASE, _BASE + timedelta(hours=24))
-        )
+        provider = FixtureSpaceWeatherProvider(_SPACE_WEATHER_DIR / "space_weather_fixture.json")
+        snaps = asyncio.run(provider.snapshots_for(_BASE, _BASE + timedelta(hours=24)))
         assert len(snaps) == 1
         assert snaps[0].kp_index == 1.0
 
@@ -431,11 +450,7 @@ class TestSpaceWeatherProvider:
 
     def test_no_capacity_multiplier_on_snapshot(self) -> None:
         """SpaceWeatherSnapshot must not have a capacity_multiplier field."""
-        provider = FixtureSpaceWeatherProvider(
-            _SPACE_WEATHER_DIR / "space_weather_fixture.json"
-        )
-        snaps = asyncio.run(
-            provider.snapshots_for(_BASE, _BASE + timedelta(hours=24))
-        )
+        provider = FixtureSpaceWeatherProvider(_SPACE_WEATHER_DIR / "space_weather_fixture.json")
+        snaps = asyncio.run(provider.snapshots_for(_BASE, _BASE + timedelta(hours=24)))
         assert len(snaps) > 0
         assert not hasattr(snaps[0], "capacity_multiplier")

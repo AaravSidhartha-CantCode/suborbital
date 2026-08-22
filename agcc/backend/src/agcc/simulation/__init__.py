@@ -40,17 +40,16 @@ All events carry a monotonically increasing sequence_number (0-based within a ru
 from __future__ import annotations
 
 import hashlib
-import math
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from enum import Enum
-from typing import Sequence
+from typing import Callable
 
-from agcc.capacity.engine import _interpolate_elevation
 from agcc.dispatch import (
-    ContactAllocation,
     DispatchPlan,
+    DispatchRedistributor,
     Fragment,
     FragmentState,
+    ResidualShortfall,
 )
 from agcc.domain.enums import EventType
 from agcc.planner import ContactPlan, PlannedContact
@@ -69,6 +68,7 @@ class ClockSpeed(str, Enum):
     X10 = "10x"
     X20 = "20x"
     X60 = "60x"
+    X100 = "100x"
     X1000 = "1000x"
 
 
@@ -79,6 +79,7 @@ _SPEED_MAP: dict[ClockSpeed, float] = {
     ClockSpeed.X10: 10.0,
     ClockSpeed.X20: 20.0,
     ClockSpeed.X60: 60.0,
+    ClockSpeed.X100: 100.0,
     ClockSpeed.X1000: 1000.0,
 }
 
@@ -141,10 +142,7 @@ class SimulationClock:
         return max(0, int(delta))
 
     def __repr__(self) -> str:
-        return (
-            f"SimulationClock(sim_time={self._sim_time.isoformat()}, "
-            f"speed={self._speed.value})"
-        )
+        return f"SimulationClock(sim_time={self._sim_time.isoformat()}, speed={self._speed.value})"
 
 
 # ---------------------------------------------------------------------------
@@ -225,9 +223,7 @@ class SessionEventStore:
         if self._events:
             last_seq = self._events[-1].sequence_number
             if event.sequence_number <= last_seq:
-                raise ValueError(
-                    f"Non-monotone sequence: {event.sequence_number} <= {last_seq}"
-                )
+                raise ValueError(f"Non-monotone sequence: {event.sequence_number} <= {last_seq}")
         self._events.append(event)
 
     def all_events(self) -> list[SimulationEvent]:
@@ -284,6 +280,8 @@ class SimulationEngine:
         protocol_efficiency: float,
         store: SessionEventStore,
         anomaly_multiplier: float = 1.0,
+        rate_provider: Callable[[PlannedContact, datetime], float] | None = None,
+        initial_delivered_mb: float = 0.0,
     ) -> None:
         self._plan = plan
         self._dispatch = dispatch
@@ -293,10 +291,11 @@ class SimulationEngine:
         self._protocol_efficiency = protocol_efficiency
         self._store = store
         self._anomaly_multiplier = anomaly_multiplier
+        self._rate_provider = rate_provider
 
         # Mutable state
         self._seq = 0
-        self._delivered_mb = 0.0
+        self._delivered_mb = initial_delivered_mb
         self._sim_time: datetime | None = None
         self._started = False
         self._finished = False
@@ -311,10 +310,12 @@ class SimulationEngine:
 
         # Fragment queue state: per-contact ordered fragment list
         self._contact_fragment_queues: dict[str, list[Fragment]] = {}
+        self._fragment_remaining_mb: dict[str, float] = {}
         self._build_fragment_queues()
 
         # Predicted shortfall tracking (for transition detection)
         self._last_predicted_shortfall_mb: float = 0.0
+        self._last_residual_shortfall: ResidualShortfall | None = None
         self._mission_ended = False
 
     @property
@@ -328,6 +329,53 @@ class SimulationEngine:
     @property
     def sim_time(self) -> datetime | None:
         return self._sim_time
+
+    @property
+    def dispatch(self) -> DispatchPlan:
+        return self._dispatch
+
+    @property
+    def last_residual_shortfall(self) -> ResidualShortfall | None:
+        return self._last_residual_shortfall
+
+    @property
+    def active_contact(self) -> PlannedContact | None:
+        """Contact currently executing, exposed read-only for API presentation."""
+        return self._active_contact
+
+    @property
+    def predicted_shortfall_mb(self) -> float:
+        return self._last_predicted_shortfall_mb
+
+    @property
+    def anomaly_multiplier(self) -> float:
+        return self._anomaly_multiplier
+
+    def current_rate_mbps(self) -> float:
+        if self._active_contact is None or self._sim_time is None:
+            return 0.0
+        return self._rate_at(self._active_contact, self._sim_time) * self._anomaly_multiplier
+
+    @property
+    def active_contact_delivered_mb(self) -> float:
+        """Volume actually delivered during the currently active contact."""
+        return self._active_contact_delivered_mb
+
+    def set_anomaly_multiplier(self, multiplier: float) -> None:
+        """Apply a validated execution-rate multiplier after modeled capacity."""
+        if not 0.0 <= multiplier <= 1.0:
+            raise ValueError("anomaly multiplier must be in [0, 1]")
+        self._anomaly_multiplier = multiplier
+
+    def record_external_event(
+        self, event_type: EventType, description: str, *, sim_time: datetime | None = None
+    ) -> None:
+        """Append a domain event at the authoritative internal simulation time."""
+        self._emit(
+            event_type,
+            sim_time or self._sim_time or self._deadline,
+            description=description,
+        )
 
     def start(self, sim_start: datetime) -> None:
         """Start the simulation at sim_start.  Must be called before tick()."""
@@ -346,25 +394,29 @@ class SimulationEngine:
         if self._sim_time is not None and sim_now < self._sim_time:
             raise ValueError("sim_now must be >= current sim_time")
 
+        # The deadline is a hard clock boundary.  A large realtime step must
+        # never leave either the engine or the globe visually beyond it.
+        sim_now = min(sim_now, self._deadline)
         self._sim_time = sim_now
-
-        # Check deadline miss
-        if sim_now > self._deadline and not self._mission_ended:
-            if self._delivered_mb < self._required_volume_mb:
-                self._emit(
-                    EventType.MISSION_DEADLINE_MISSED,
-                    sim_now,
-                    description=f"delivered={self._delivered_mb:.4f} < required={self._required_volume_mb:.4f}",
-                )
-                self._mission_ended = True
-                self._finished = True
-                return
 
         # Advance contact state machine
         self._advance_contacts(sim_now)
 
         # Forecast shortfall
         self._update_shortfall_forecast(sim_now)
+
+        if sim_now == self._deadline and not self._mission_ended:
+            if self._delivered_mb < self._required_volume_mb:
+                self._emit(
+                    EventType.MISSION_DEADLINE_MISSED,
+                    self._deadline,
+                    description=(
+                        f"delivered={self._delivered_mb:.4f} < "
+                        f"required={self._required_volume_mb:.4f}; resolution approval required"
+                    ),
+                )
+                self._mission_ended = True
+                self._finished = True
 
     def pause(self, sim_now: datetime) -> None:
         """Emit SIMULATION_PAUSED event."""
@@ -376,14 +428,18 @@ class SimulationEngine:
 
     def _build_fragment_queues(self) -> None:
         """Build per-contact ordered fragment queues from the dispatch plan."""
+        self._contact_fragment_queues.clear()
+        self._fragment_remaining_mb.clear()
         frag_map = {f.fragment_id: f for f in self._dispatch.fragments}
         for alloc in self._dispatch.allocations:
             queue = [
                 frag_map[fid]
                 for fid in alloc.fragment_ids
-                if fid in frag_map
+                if fid in frag_map and frag_map[fid].state != FragmentState.DELIVERED
             ]
             self._contact_fragment_queues[alloc.contact_id] = queue
+            for fragment in queue:
+                self._fragment_remaining_mb[fragment.fragment_id] = fragment.volume_mb
 
     def _emit(
         self,
@@ -420,10 +476,7 @@ class SimulationEngine:
                 self._close_active_contact(sim_now)
 
         # Open next contact if time has come
-        while (
-            self._active_contact is None
-            and self._contact_index < len(self._contacts_sorted)
-        ):
+        while self._active_contact is None and self._contact_index < len(self._contacts_sorted):
             nxt = self._contacts_sorted[self._contact_index]
             if sim_now >= nxt.start_at:
                 self._open_contact(nxt, sim_now)
@@ -464,14 +517,19 @@ class SimulationEngine:
             contact_id=contact.contact_id,
             delivered_volume_mb=self._active_contact_delivered_mb,
         )
+        self._dispatch, self._last_residual_shortfall = DispatchRedistributor().record_delivery(
+            self._dispatch,
+            contact.contact_id,
+            self._active_contact_delivered_mb,
+            sim_now,
+            self._contacts_sorted,
+        )
+        self._build_fragment_queues()
         self._active_contact = None
         self._active_contact_delivered_mb = 0.0
 
         # Check mission completion
-        if (
-            not self._mission_ended
-            and self._delivered_mb >= self._required_volume_mb - 1e-9
-        ):
+        if not self._mission_ended and self._delivered_mb >= self._required_volume_mb - 1e-9:
             self._emit(
                 EventType.MISSION_COMPLETED,
                 sim_now,
@@ -506,7 +564,7 @@ class SimulationEngine:
         remaining_tick = capacity_tick
         while remaining_tick > 1e-9 and queue:
             frag = queue[0]
-            frag_remaining = frag.volume_mb
+            frag_remaining = self._fragment_remaining_mb[frag.fragment_id]
 
             tick_delivered = min(frag_remaining, remaining_tick)
             remaining_tick -= tick_delivered
@@ -516,6 +574,7 @@ class SimulationEngine:
             if tick_delivered >= frag_remaining - 1e-9:
                 # Fragment fully delivered
                 queue.pop(0)
+                self._fragment_remaining_mb.pop(frag.fragment_id, None)
                 self._emit(
                     EventType.FRAGMENT_DELIVERED,
                     sim_now,
@@ -547,18 +606,8 @@ class SimulationEngine:
                 break
 
         # Check mission completion mid-contact
-        if (
-            not self._mission_ended
-            and self._delivered_mb >= self._required_volume_mb - 1e-9
-        ):
-            self._emit(
-                EventType.MISSION_COMPLETED,
-                sim_now,
-                delivered_volume_mb=self._delivered_mb,
-                description=f"required={self._required_volume_mb:.4f}",
-            )
-            self._mission_ended = True
-            self._finished = True
+        if not self._mission_ended and self._delivered_mb >= self._required_volume_mb - 1e-9:
+            self._close_active_contact(sim_now)
 
     def _rate_at(self, contact: PlannedContact, sim_now: datetime) -> float:
         """Estimate effective transfer rate (Mbit/s) at sim_now within a contact.
@@ -566,6 +615,10 @@ class SimulationEngine:
         Uses linear elevation interpolation over the contact window, then
         applies sin(elevation) as the elevation factor.
         """
+        if self._rate_provider is not None:
+            return max(0.0, self._rate_provider(contact, sim_now))
+        return max(0.0, self._base_rate_mbps * self._protocol_efficiency)
+
         start_ts = contact.start_at.timestamp()
         end_ts = contact.end_at.timestamp()
         sim_ts = sim_now.timestamp()
@@ -607,11 +660,8 @@ class SimulationEngine:
         """
         queue = self._contact_fragment_queues[contact_id]
         if queue and queue[0].fragment_id == frag.fragment_id:
-            # Build a new Fragment with reduced volume (using object.__setattr__ trick)
-            # Instead, use a _FragmentProxy stored in the queue.
-            remaining = frag.volume_mb - delivered_this_tick
-            if remaining > 1e-9:
-                queue[0] = _FragmentProxy(frag.fragment_id, remaining)  # type: ignore[assignment]
+            remaining = self._fragment_remaining_mb[frag.fragment_id] - delivered_this_tick
+            self._fragment_remaining_mb[frag.fragment_id] = max(0.0, remaining)
 
     def _update_shortfall_forecast(self, sim_now: datetime) -> None:
         """Compute predicted shortfall and emit SHORTFALL_PREDICTED if triggered."""
@@ -634,8 +684,15 @@ class SimulationEngine:
     def _remaining_planned_capacity(self, sim_now: datetime) -> float:
         """Sum of allocated_volume_mb for all future+active contacts."""
         total = 0.0
+        allocations = {item.contact_id: item for item in self._dispatch.allocations}
         for c in self._contacts_sorted:
             if c.end_at > sim_now:
+                allocation = allocations.get(c.contact_id)
+                approved_capacity = (
+                    allocation.planned_volume_mb
+                    if allocation is not None
+                    else c.allocated_volume_mb
+                )
                 # Partially or fully in the future
                 if c.start_at <= sim_now:
                     # Active contact: count only the undelivered portion
@@ -644,23 +701,8 @@ class SimulationEngine:
                         0.0,
                         1.0 - (sim_now - c.start_at).total_seconds() / c.duration_s,
                     )
-                    total += c.allocated_volume_mb * fraction_remaining
+                    total += approved_capacity * fraction_remaining
                 else:
                     # Future contact
-                    total += c.allocated_volume_mb
+                    total += approved_capacity
         return total
-
-
-# ---------------------------------------------------------------------------
-# Minimal mutable fragment proxy for in-queue partial delivery tracking
-# ---------------------------------------------------------------------------
-
-
-class _FragmentProxy:
-    """Lightweight mutable volume-tracking proxy for Fragment queue entries."""
-
-    __slots__ = ("fragment_id", "volume_mb")
-
-    def __init__(self, fragment_id: str, volume_mb: float) -> None:
-        self.fragment_id = fragment_id
-        self.volume_mb = volume_mb

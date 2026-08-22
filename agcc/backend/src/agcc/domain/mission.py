@@ -32,9 +32,7 @@ class DownlinkMission(BaseModel):
     required_volume_mb: float = Field(
         gt=0.0, description="Required data volume in decimal megabytes"
     )
-    release_at: datetime = Field(
-        description="Earliest time data may be downlinked (UTC)"
-    )
+    release_at: datetime = Field(description="Earliest time data may be downlinked (UTC)")
     deadline_at: datetime = Field(
         description="Hard deadline — data must be downlinked by this time (UTC)"
     )

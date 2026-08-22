@@ -59,12 +59,14 @@ def _orbit() -> CustomCircularOrbit:
 
 
 def _comms() -> SatelliteCommunications:
-    from agcc.domain.enums import Band
+    from agcc.domain.enums import Band, LinkPolarization
+
     return SatelliteCommunications(
         band=Band.X,
         carrier_frequency_ghz=9.6,
         max_downlink_rate_mbps=100.0,
         protocol_efficiency=1.0,
+        polarization=LinkPolarization.CIRCULAR,
         min_elevation_deg=5.0,
     )
 
@@ -80,15 +82,25 @@ def _satellite(sat_id: str = "sat_test01") -> CustomSatellite:
 
 
 _FULL_STATION_ASSUMPTIONS = [
-    "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
-    "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
-    "cost_model", "booking_cost", "cost_per_minute", "currency",
+    "latitude_deg",
+    "longitude_deg",
+    "altitude_m",
+    "supported_bands",
+    "max_downlink_rate_mbps",
+    "minimum_elevation_deg",
+    "setup_s",
+    "teardown_s",
+    "cost_model",
+    "booking_cost",
+    "cost_per_minute",
+    "currency",
 ]
 
 
 def _station(station_id: str = "station_test01") -> GroundStation:
     from agcc.domain.enums import Band
     from agcc.domain.stations import FieldProvenance
+
     return GroundStation(
         station_id=station_id,
         name="TestStation",
@@ -103,9 +115,7 @@ def _station(station_id: str = "station_test01") -> GroundStation:
         teardown_s=30,
         booking_cost=0.0,
         cost_per_minute=10.0,
-        field_provenance=FieldProvenance(
-            assumptions=_FULL_STATION_ASSUMPTIONS
-        ),
+        field_provenance=FieldProvenance(assumptions=_FULL_STATION_ASSUMPTIONS),
     )
 
 
@@ -134,6 +144,7 @@ def _candidate_pass(pass_id: str = "pass_001") -> CandidatePass:
 # ---------------------------------------------------------------------------
 # ID prefix tests
 # ---------------------------------------------------------------------------
+
 
 class TestIdPrefixes:
     def test_satellite_valid_id(self) -> None:
@@ -272,6 +283,7 @@ class TestIdPrefixes:
 
     def test_scenario_valid_id(self) -> None:
         from decimal import Decimal
+
         sc = Scenario(
             scenario_id="scenario_s1",
             name="S1",
@@ -287,6 +299,7 @@ class TestIdPrefixes:
 
     def test_scenario_wrong_prefix_fails(self) -> None:
         from decimal import Decimal
+
         with pytest.raises(ValidationError):
             Scenario(
                 scenario_id="plan_s1",
@@ -320,6 +333,7 @@ class TestIdPrefixes:
 # ---------------------------------------------------------------------------
 # Naive datetime rejection
 # ---------------------------------------------------------------------------
+
 
 class TestNaiveDatetimes:
     def test_orbit_epoch_naive_rejected(self) -> None:
@@ -405,6 +419,7 @@ class TestNaiveDatetimes:
     def test_weather_naive_rejected(self) -> None:
         import hashlib
         import json
+
         payload = dict(
             snapshot_id="event_wx_test",
             station_id="station_x",
@@ -419,12 +434,16 @@ class TestNaiveDatetimes:
             wind_speed_mps=0.0,
             source_kind="fixture",
             source_quality="verified",
-            provenance=dict(source_type="manual", source_name="test",
-                            fetched_at=_NOW.isoformat().replace("+00:00", "Z")),
+            provenance=dict(
+                source_type="manual",
+                source_name="test",
+                fetched_at=_NOW.isoformat().replace("+00:00", "Z"),
+            ),
         )
         h = hashlib.sha256(
-            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-            .encode("utf-8")
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
+                "utf-8"
+            )
         ).hexdigest()
         with pytest.raises(ValidationError, match="naive"):
             WeatherSnapshot(
@@ -463,6 +482,7 @@ class TestNaiveDatetimes:
 # Negative value rejection
 # ---------------------------------------------------------------------------
 
+
 class TestUnitConstraints:
     def test_altitude_out_of_range_rejected(self) -> None:
         with pytest.raises(ValidationError):
@@ -485,24 +505,28 @@ class TestUnitConstraints:
             )
 
     def test_downlink_rate_zero_rejected(self) -> None:
-        from agcc.domain.enums import Band
+        from agcc.domain.enums import Band, LinkPolarization
+
         with pytest.raises(ValidationError):
             SatelliteCommunications(
                 band=Band.X,
                 carrier_frequency_ghz=9.6,
                 max_downlink_rate_mbps=0.0,
                 protocol_efficiency=1.0,
+                polarization=LinkPolarization.CIRCULAR,
                 min_elevation_deg=5.0,
             )
 
     def test_downlink_rate_negative_rejected(self) -> None:
-        from agcc.domain.enums import Band
+        from agcc.domain.enums import Band, LinkPolarization
+
         with pytest.raises(ValidationError):
             SatelliteCommunications(
                 band=Band.X,
                 carrier_frequency_ghz=9.6,
                 max_downlink_rate_mbps=-1.0,
                 protocol_efficiency=1.0,
+                polarization=LinkPolarization.CIRCULAR,
                 min_elevation_deg=5.0,
             )
 
@@ -537,6 +561,7 @@ class TestUnitConstraints:
     def test_station_max_rate_zero_rejected(self) -> None:
         from agcc.domain.enums import Band
         from agcc.domain.stations import FieldProvenance
+
         with pytest.raises(ValidationError):
             GroundStation(
                 station_id="station_x",
@@ -552,9 +577,7 @@ class TestUnitConstraints:
                 teardown_s=0,
                 booking_cost=0.0,
                 cost_per_minute=0.0,
-                field_provenance=FieldProvenance(
-                    assumptions=_FULL_STATION_ASSUMPTIONS
-                ),
+                field_provenance=FieldProvenance(assumptions=_FULL_STATION_ASSUMPTIONS),
             )
 
     def test_capacity_mb_negative_rejected(self) -> None:
@@ -575,6 +598,7 @@ class TestUnitConstraints:
 # ---------------------------------------------------------------------------
 # UTC Z serialization
 # ---------------------------------------------------------------------------
+
 
 class TestUtcSerialization:
     def test_orbit_epoch_serializes_with_z(self) -> None:
@@ -611,6 +635,7 @@ class TestUtcSerialization:
 # ---------------------------------------------------------------------------
 # Error constructors
 # ---------------------------------------------------------------------------
+
 
 class TestDomainErrors:
     def test_validation_error_code(self) -> None:
@@ -650,6 +675,7 @@ class TestDomainErrors:
 # ModelRef
 # ---------------------------------------------------------------------------
 
+
 class TestModelRef:
     def test_basic(self) -> None:
         ref = ModelRef(id="plan_abc", version=1)
@@ -664,6 +690,7 @@ class TestModelRef:
 # ---------------------------------------------------------------------------
 # CandidatePass invariants (Part D)
 # ---------------------------------------------------------------------------
+
 
 class TestCandidatePassInvariants:
     """Tests for the CandidatePass model_validator invariants."""
@@ -697,30 +724,38 @@ class TestCandidatePassInvariants:
 
     def test_peak_before_start_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            CandidatePass(**self._base_kwargs(
-                peak_at=_NOW - timedelta(seconds=1),
-            ))
+            CandidatePass(
+                **self._base_kwargs(
+                    peak_at=_NOW - timedelta(seconds=1),
+                )
+            )
 
     def test_peak_equal_to_start_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            CandidatePass(**self._base_kwargs(
-                peak_at=_NOW,
-            ))
+            CandidatePass(
+                **self._base_kwargs(
+                    peak_at=_NOW,
+                )
+            )
 
     def test_end_before_peak_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            CandidatePass(**self._base_kwargs(
-                end_at=_NOW + timedelta(minutes=3),
-                duration_s=300.0,
-                peak_at=_NOW + timedelta(minutes=4),
-            ))
+            CandidatePass(
+                **self._base_kwargs(
+                    end_at=_NOW + timedelta(minutes=3),
+                    duration_s=300.0,
+                    peak_at=_NOW + timedelta(minutes=4),
+                )
+            )
 
     def test_inconsistent_duration_rejected(self) -> None:
         """duration_s that differs from end_at - start_at by > 1s must be rejected."""
         with pytest.raises(ValidationError):
-            CandidatePass(**self._base_kwargs(
-                duration_s=700.0,  # 600s actual, 700s stated → 100s diff > 1s
-            ))
+            CandidatePass(
+                **self._base_kwargs(
+                    duration_s=700.0,  # 600s actual, 700s stated → 100s diff > 1s
+                )
+            )
 
     def test_zero_usable_duration_rejected(self) -> None:
         with pytest.raises(ValidationError):
@@ -732,10 +767,12 @@ class TestCandidatePassInvariants:
 
     def test_max_el_less_than_min_el_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            CandidatePass(**self._base_kwargs(
-                max_elevation_deg=3.0,
-                minimum_elevation_deg=5.0,
-            ))
+            CandidatePass(
+                **self._base_kwargs(
+                    max_elevation_deg=3.0,
+                    minimum_elevation_deg=5.0,
+                )
+            )
 
     def test_blank_scenario_id_rejected(self) -> None:
         with pytest.raises(ValidationError):

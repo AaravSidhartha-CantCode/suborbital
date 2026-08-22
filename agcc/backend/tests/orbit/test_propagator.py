@@ -28,10 +28,10 @@ from agcc.orbit.propagator import CircularKeplerPropagator
 # Tolerance constants
 # ---------------------------------------------------------------------------
 
-_RADIUS_TOL_KM: float = 1e-6    # radius invariance (numerical)
-_ALT_TOL_KM: float = 0.1        # altitude invariance (task spec)
+_RADIUS_TOL_KM: float = 1e-6  # radius invariance (numerical)
+_ALT_TOL_KM: float = 0.1  # altitude invariance (task spec)
 _PERIOD_POS_TOL_KM: float = 1e-4  # position repeat after one period
-_LAT_TOL_DEG: float = 1e-6      # latitude bound tolerance
+_LAT_TOL_DEG: float = 1e-6  # latitude bound tolerance
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -72,6 +72,7 @@ _PROPAGATOR = CircularKeplerPropagator()
 # The fixture is computed at epoch + 0, + T/4, + T/2 for _ORBIT_MID.
 # Values were captured from the first passing run and locked here.
 # Any algorithmic change that shifts these values must be deliberate.
+
 
 def _fixture_state(dt_s: float) -> OrbitState:
     t = _EPOCH + timedelta(seconds=dt_s)
@@ -140,6 +141,7 @@ class TestRadiusInvariance:
 # Altitude invariance
 # ---------------------------------------------------------------------------
 
+
 class TestAltitudeInvariance:
     @pytest.mark.parametrize("dt_s", _SAMPLE_TIMES_S)
     def test_mid_orbit_altitude_constant(self, dt_s: float) -> None:
@@ -159,6 +161,7 @@ class TestAltitudeInvariance:
 # ---------------------------------------------------------------------------
 # Period repeatability
 # ---------------------------------------------------------------------------
+
 
 class TestPeriodRepeat:
     def test_eci_position_repeats_after_one_period(self) -> None:
@@ -192,6 +195,7 @@ class TestPeriodRepeat:
 # Latitude bound
 # ---------------------------------------------------------------------------
 
+
 class TestLatitudeBound:
     @pytest.mark.parametrize("dt_s", _SAMPLE_TIMES_S)
     def test_mid_orbit_lat_within_inclination(self, dt_s: float) -> None:
@@ -218,20 +222,20 @@ class TestLatitudeBound:
 # Longitude bounds
 # ---------------------------------------------------------------------------
 
+
 class TestLongitudeBounds:
     @pytest.mark.parametrize("dt_s", _SAMPLE_TIMES_S)
     def test_longitude_in_range(self, dt_s: float) -> None:
         for orbit in _TEST_ORBITS:
             t = _EPOCH + timedelta(seconds=dt_s)
             s = _PROPAGATOR.state_at(orbit, t)
-            assert -180.0 <= s.longitude_deg < 180.0, (
-                f"longitude {s.longitude_deg} out of range"
-            )
+            assert -180.0 <= s.longitude_deg < 180.0, f"longitude {s.longitude_deg} out of range"
 
 
 # ---------------------------------------------------------------------------
 # Ground track
 # ---------------------------------------------------------------------------
+
 
 class TestGroundTrack:
     def test_step_count_matches(self) -> None:
@@ -255,33 +259,25 @@ class TestGroundTrack:
 
     def test_ground_track_all_longitudes_in_range(self) -> None:
         T = int(period_s(_ORBIT_MID))
-        pts = _PROPAGATOR.sample_ground_track(
-            _ORBIT_MID, _EPOCH, _EPOCH + timedelta(seconds=T), 60
-        )
+        pts = _PROPAGATOR.sample_ground_track(_ORBIT_MID, _EPOCH, _EPOCH + timedelta(seconds=T), 60)
         for pt in pts:
             assert -180.0 <= pt.longitude_deg < 180.0
 
     def test_ground_track_latitudes_within_inclination(self) -> None:
         T = int(period_s(_ORBIT_MID))
-        pts = _PROPAGATOR.sample_ground_track(
-            _ORBIT_MID, _EPOCH, _EPOCH + timedelta(seconds=T), 60
-        )
+        pts = _PROPAGATOR.sample_ground_track(_ORBIT_MID, _EPOCH, _EPOCH + timedelta(seconds=T), 60)
         for pt in pts:
             assert abs(pt.latitude_deg) <= _ORBIT_MID.inclination_deg + _LAT_TOL_DEG
 
     def test_ground_track_altitudes_constant(self) -> None:
         T = int(period_s(_ORBIT_MID))
-        pts = _PROPAGATOR.sample_ground_track(
-            _ORBIT_MID, _EPOCH, _EPOCH + timedelta(seconds=T), 60
-        )
+        pts = _PROPAGATOR.sample_ground_track(_ORBIT_MID, _EPOCH, _EPOCH + timedelta(seconds=T), 60)
         for pt in pts:
             assert abs(pt.altitude_km - _ORBIT_MID.altitude_km) < _ALT_TOL_KM
 
     def test_invalid_step_raises(self) -> None:
         with pytest.raises(ValueError):
-            _PROPAGATOR.sample_ground_track(
-                _ORBIT_MID, _EPOCH, _EPOCH + timedelta(seconds=60), 0
-            )
+            _PROPAGATOR.sample_ground_track(_ORBIT_MID, _EPOCH, _EPOCH + timedelta(seconds=60), 0)
 
     def test_ground_track_returns_ground_track_points(self) -> None:
         pts = _PROPAGATOR.sample_ground_track(
@@ -294,9 +290,7 @@ class TestGroundTrack:
         """state_at and ground_track must give the same lat/lon/alt for same time."""
         t = _EPOCH + timedelta(seconds=300)
         state = _PROPAGATOR.state_at(_ORBIT_MID, t)
-        pts = _PROPAGATOR.sample_ground_track(
-            _ORBIT_MID, t, t, 1
-        )
+        pts = _PROPAGATOR.sample_ground_track(_ORBIT_MID, t, t, 1)
         assert len(pts) == 1
         pt = pts[0]
         assert abs(pt.latitude_deg - state.latitude_deg) < 1e-12

@@ -294,9 +294,7 @@ class TestNoFeasiblePlan:
         st = _station()
         # Pass starts after deadline
         deadline = _NOW + timedelta(hours=1)
-        r = _eligible_record(
-            "pass_e001", 2.0, 500.0, st, deadline=deadline, budget=float(_BUDGET)
-        )
+        r = _eligible_record("pass_e001", 2.0, 500.0, st, deadline=deadline, budget=float(_BUDGET))
         # r is ineligible (DEADLINE_MISSED), no eligible records
         plan = _run([r], st, required_mb=100.0, deadline=deadline)
         assert plan.status == PlanStatus.NO_FEASIBLE_PLAN_FOUND
@@ -434,12 +432,8 @@ class TestPreferenceFastest:
         st = _station()
         r1 = _eligible_record("pass_e001", 1.0, 200.0, st)
         r2 = _eligible_record("pass_e002", 5.0, 200.0, st)
-        plan_fast = _run(
-            [r1, r2], st, required_mb=100.0, preference=PlanningPreference.FASTEST
-        )
-        plan_slow = _run(
-            [r1, r2], st, required_mb=100.0, preference=PlanningPreference.LOWEST_COST
-        )
+        plan_fast = _run([r1, r2], st, required_mb=100.0, preference=PlanningPreference.FASTEST)
+        plan_slow = _run([r1, r2], st, required_mb=100.0, preference=PlanningPreference.LOWEST_COST)
         # Both feasible; FASTEST should complete no later than LOWEST_COST
         if plan_fast.status == PlanStatus.FEASIBLE and plan_slow.status == PlanStatus.FEASIBLE:
             assert plan_fast.planned_completion_at <= plan_slow.planned_completion_at  # type: ignore[operator]
@@ -515,8 +509,7 @@ class TestPreferenceBalanced:
         ]
         budget = Decimal("500")
         plan = _run(
-            records, st, required_mb=100.0,
-            preference=PlanningPreference.BALANCED, budget=budget
+            records, st, required_mb=100.0, preference=PlanningPreference.BALANCED, budget=budget
         )
         if plan.status == PlanStatus.FEASIBLE:
             assert Decimal(plan.estimated_total_cost) <= budget

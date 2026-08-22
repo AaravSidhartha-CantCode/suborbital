@@ -91,13 +91,9 @@ class CandidatePass(BaseModel):
         if not self.scenario_id:
             raise ValueError("scenario_id must be non-empty")
         if not self.satellite_id.startswith("sat_"):
-            raise ValueError(
-                f"satellite_id must start with 'sat_', got '{self.satellite_id}'"
-            )
+            raise ValueError(f"satellite_id must start with 'sat_', got '{self.satellite_id}'")
         if not self.station_id.startswith("station_"):
-            raise ValueError(
-                f"station_id must start with 'station_', got '{self.station_id}'"
-            )
+            raise ValueError(f"station_id must start with 'station_', got '{self.station_id}'")
         if not self.orbit_model_version:
             raise ValueError("orbit_model_version must be non-empty")
         if not self.station_catalog_version:

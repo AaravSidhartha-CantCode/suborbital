@@ -42,6 +42,7 @@ _ORBIT_MODEL_VERSION = "circular_kepler_v1"
 # Pass ID
 # ---------------------------------------------------------------------------
 
+
 def _pass_id(
     satellite_id: str,
     station_id: str,
@@ -57,6 +58,7 @@ def _pass_id(
 # Elevation helper at a datetime
 # ---------------------------------------------------------------------------
 
+
 def _elev_at(
     orbit: CustomCircularOrbit,
     station: GroundStation,
@@ -71,6 +73,7 @@ def _elev_at(
 # ---------------------------------------------------------------------------
 # Bisection to find threshold crossing
 # ---------------------------------------------------------------------------
+
 
 def _bisect_crossing(
     orbit: CustomCircularOrbit,
@@ -107,6 +110,7 @@ def _bisect_crossing(
 # Peak finder (1-second sampling within window)
 # ---------------------------------------------------------------------------
 
+
 def _find_peak(
     orbit: CustomCircularOrbit,
     station: GroundStation,
@@ -115,13 +119,25 @@ def _find_peak(
     set_: datetime,
     propagator: OrbitPropagator,
 ) -> tuple[datetime, float]:
-    """Return (peak_time, peak_elevation_deg) by 1-second sampling."""
-    best_t = rise
-    best_el = _elev_at(orbit, station, sta_ecef, rise, propagator)
+    """Return the highest strict-interior 1-second sample.
 
-    t = rise
+    A planning horizon may begin or end in the middle of an existing pass. In
+    that truncated window the mathematical maximum can be exactly on a
+    boundary, while CandidatePass deliberately requires start < peak < end for
+    safe interpolation. The closest interior sample is therefore authoritative
+    for the represented opportunity.
+    """
+    duration_s = (set_ - rise).total_seconds()
+    if duration_s <= 0.0:
+        raise ValueError("Pass peak requires a positive-duration window")
+    inset_s = min(float(_PEAK_STEP_S), duration_s / 2.0)
+    first_t = rise + timedelta(seconds=inset_s)
+    best_t = first_t
+    best_el = _elev_at(orbit, station, sta_ecef, first_t, propagator)
+
+    t = first_t + timedelta(seconds=_PEAK_STEP_S)
     end_ts = set_.timestamp()
-    while t.timestamp() <= end_ts:
+    while t.timestamp() < end_ts:
         el = _elev_at(orbit, station, sta_ecef, t, propagator)
         if el > best_el:
             best_el = el
@@ -134,6 +150,7 @@ def _find_peak(
 # ---------------------------------------------------------------------------
 # Per-station pass computation
 # ---------------------------------------------------------------------------
+
 
 def _compute_passes_for_station(
     orbit: CustomCircularOrbit,
@@ -190,9 +207,16 @@ def _compute_passes_for_station(
             set_time = _bisect_crossing(orbit, station, sta_ecef, t0, t1, min_elev, propagator)
             if rise_time is not None:
                 cp = _build_pass(
-                    orbit, station, sta_ecef, rise_time, set_time,
-                    orbit_model_version, station_catalog_version, scenario_id,
-                    satellite_id, propagator,
+                    orbit,
+                    station,
+                    sta_ecef,
+                    rise_time,
+                    set_time,
+                    orbit_model_version,
+                    station_catalog_version,
+                    scenario_id,
+                    satellite_id,
+                    propagator,
                 )
                 if cp is not None:
                     passes.append(cp)
@@ -203,9 +227,16 @@ def _compute_passes_for_station(
     if in_pass and rise_time is not None:
         set_time = end
         cp = _build_pass(
-            orbit, station, sta_ecef, rise_time, set_time,
-            orbit_model_version, station_catalog_version, scenario_id,
-            satellite_id, propagator,
+            orbit,
+            station,
+            sta_ecef,
+            rise_time,
+            set_time,
+            orbit_model_version,
+            station_catalog_version,
+            scenario_id,
+            satellite_id,
+            propagator,
         )
         if cp is not None:
             passes.append(cp)
@@ -271,6 +302,7 @@ def _build_pass(
 # ---------------------------------------------------------------------------
 # Public engine
 # ---------------------------------------------------------------------------
+
 
 class PassEngine:
     """Computes CandidatePass windows for a satellite over authorized stations."""

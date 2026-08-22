@@ -29,6 +29,7 @@ class ExternalDataUnavailable(Exception):
 # Protocol
 # ---------------------------------------------------------------------------
 
+
 class StationCatalogProvider(Protocol):
     """Abstract interface for obtaining a station catalog."""
 
@@ -41,18 +42,18 @@ class StationCatalogProvider(Protocol):
 # Not-configured placeholder
 # ---------------------------------------------------------------------------
 
+
 class NotConfiguredStationCatalogProvider:
     """Placeholder raised when no real catalog provider has been wired up."""
 
     def load(self) -> StationCatalog:
-        raise ExternalDataUnavailable(
-            external_data_unavailable(_CATALOG_NOT_CONFIGURED_SOURCE)
-        )
+        raise ExternalDataUnavailable(external_data_unavailable(_CATALOG_NOT_CONFIGURED_SOURCE))
 
 
 # ---------------------------------------------------------------------------
 # JSON file loader
 # ---------------------------------------------------------------------------
+
 
 def load_catalog_from_file(path: Path) -> StationCatalog:
     """Load and validate a StationCatalog from a JSON file.
@@ -66,7 +67,9 @@ def load_catalog_from_file(path: Path) -> StationCatalog:
     stations.sort(key=lambda s: s.station_id)
 
     # Build catalog — pass all top-level fields from the JSON file
-    return StationCatalog.model_validate({
-        **{k: v for k, v in raw.items() if k not in ("stations", "_comment")},
-        "stations": [s.model_dump(mode="python") for s in stations],
-    })
+    return StationCatalog.model_validate(
+        {
+            **{k: v for k, v in raw.items() if k not in ("stations", "_comment")},
+            "stations": [s.model_dump(mode="python") for s in stations],
+        }
+    )

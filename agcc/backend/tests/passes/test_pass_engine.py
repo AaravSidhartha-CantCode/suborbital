@@ -45,9 +45,18 @@ _ORBIT_MID = CustomCircularOrbit(
 )
 
 _FULL_ASSUMPTIONS = [
-    "latitude_deg", "longitude_deg", "altitude_m", "supported_bands",
-    "max_downlink_rate_mbps", "minimum_elevation_deg", "setup_s", "teardown_s",
-    "cost_model", "booking_cost", "cost_per_minute", "currency",
+    "latitude_deg",
+    "longitude_deg",
+    "altitude_m",
+    "supported_bands",
+    "max_downlink_rate_mbps",
+    "minimum_elevation_deg",
+    "setup_s",
+    "teardown_s",
+    "cost_model",
+    "booking_cost",
+    "cost_per_minute",
+    "currency",
 ]
 _COORD_PROV = FieldProvenance(assumptions=_FULL_ASSUMPTIONS)
 
@@ -114,6 +123,7 @@ def _compute_24h(
 # Invariant 1: start < peak < end
 # ---------------------------------------------------------------------------
 
+
 class TestTimingOrder:
     def test_start_before_peak_before_end(self) -> None:
         passes = _compute_24h()
@@ -138,6 +148,25 @@ class TestTimingOrder:
         passes = _compute_24h()
         for p in passes:
             assert p.usable_duration_s > 0.0
+
+    def test_horizon_starting_during_descending_pass_keeps_peak_interior(self) -> None:
+        full_passes = _compute_24h(stations=[_STATIONS[0]])
+        source = next(
+            item
+            for item in full_passes
+            if (item.end_at - item.peak_at).total_seconds() > 120
+        )
+        truncated = _ENGINE.compute_passes(
+            orbit=_ORBIT_MID,
+            satellite_id=_SAT_ID,
+            stations=[_STATIONS[0]],
+            horizon_start=source.peak_at + timedelta(seconds=10),
+            horizon_end=source.end_at + timedelta(seconds=10),
+            scenario_id=_SCENARIO_ID,
+            station_catalog_version=_CATALOG_VERSION,
+        )
+        assert truncated
+        assert truncated[0].start_at < truncated[0].peak_at < truncated[0].end_at
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +211,7 @@ class TestBoundaryElevation:
 # Invariant 3: max_elevation_deg >= minimum_elevation_deg
 # ---------------------------------------------------------------------------
 
+
 class TestMaxElevation:
     def test_max_elevation_meets_threshold(self) -> None:
         passes = _compute_24h()
@@ -200,6 +230,7 @@ class TestMaxElevation:
 # ---------------------------------------------------------------------------
 # Invariant 4: no overlapping duplicate passes per station
 # ---------------------------------------------------------------------------
+
 
 class TestNoDuplicates:
     def test_no_overlapping_passes_same_station(self) -> None:
@@ -228,6 +259,7 @@ class TestNoDuplicates:
 # Invariant 5: multiple stations produce multiple passes
 # ---------------------------------------------------------------------------
 
+
 class TestMultiplePasses:
     def test_multiple_stations_produce_multiple_passes(self) -> None:
         passes = _compute_24h()
@@ -238,15 +270,15 @@ class TestMultiplePasses:
 
     def test_at_least_5_passes_in_24h(self) -> None:
         passes = _compute_24h()
-        assert len(passes) >= 5, (
-            f"Expected ≥5 passes over 24 h, got {len(passes)}"
-        )
+        assert len(passes) >= 5, f"Expected ≥5 passes over 24 h, got {len(passes)}"
 
     def test_demo_catalog_produces_passes(self) -> None:
         """Demo catalog stations + 24 h window must yield multiple passes."""
         demo_path = (
             Path(__file__).resolve().parent.parent.parent.parent
-            / "data" / "catalogs" / "stations.demo.json"
+            / "data"
+            / "catalogs"
+            / "stations.demo.json"
         )
         catalog = load_catalog_from_file(demo_path)
         sel = StationSelection(allow_all_eligible=True)
@@ -263,14 +295,13 @@ class TestMultiplePasses:
             scenario_id=_SCENARIO_ID,
         )
         station_ids = {p.station_id for p in passes}
-        assert len(station_ids) >= 3, (
-            f"Expected passes from ≥3 demo stations, got {station_ids}"
-        )
+        assert len(station_ids) >= 3, f"Expected passes from ≥3 demo stations, got {station_ids}"
 
 
 # ---------------------------------------------------------------------------
 # Invariant 6: determinism — same input → byte-identical output
 # ---------------------------------------------------------------------------
+
 
 class TestDeterminism:
     def test_same_input_same_output(self) -> None:
@@ -332,6 +363,7 @@ class TestDeterminism:
 # Geometry sanity
 # ---------------------------------------------------------------------------
 
+
 class TestGeometry:
     def test_slant_range_positive(self) -> None:
         passes = _compute_24h()
@@ -348,8 +380,10 @@ class TestGeometry:
         """Station with setup+teardown >= any pass duration produces no passes."""
         # Very high elevation threshold + large overhead time = almost no usable contacts
         tight = _make_station(
-            "station_tight", lat=48.9, lon=9.2,
-            min_elev=45.0,    # only zenith passes
+            "station_tight",
+            lat=48.9,
+            lon=9.2,
+            min_elev=45.0,  # only zenith passes
             setup_s=9999,
             teardown_s=0,
         )
@@ -371,11 +405,13 @@ class TestGeometry:
 # Propagator injection (Part E)
 # ---------------------------------------------------------------------------
 
+
 class _RecordingPropagator:
     """Test-double propagator that wraps CircularKeplerPropagator and tracks calls."""
 
     def __init__(self) -> None:
         from agcc.orbit.propagator import CircularKeplerPropagator
+
         self._real = CircularKeplerPropagator()
         self.call_count = 0
 
@@ -407,14 +443,22 @@ class TestPropagatorInjection:
         e1 = PassEngine()
         e2 = PassEngine(propagator=_RecordingPropagator())
         p1 = e1.compute_passes(
-            orbit=_ORBIT_MID, satellite_id=_SAT_ID, stations=_STATIONS,
-            horizon_start=_24H_START, horizon_end=_24H_END,
-            scenario_id=_SCENARIO_ID, station_catalog_version=_CATALOG_VERSION,
+            orbit=_ORBIT_MID,
+            satellite_id=_SAT_ID,
+            stations=_STATIONS,
+            horizon_start=_24H_START,
+            horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
+            station_catalog_version=_CATALOG_VERSION,
         )
         p2 = e2.compute_passes(
-            orbit=_ORBIT_MID, satellite_id=_SAT_ID, stations=_STATIONS,
-            horizon_start=_24H_START, horizon_end=_24H_END,
-            scenario_id=_SCENARIO_ID, station_catalog_version=_CATALOG_VERSION,
+            orbit=_ORBIT_MID,
+            satellite_id=_SAT_ID,
+            stations=_STATIONS,
+            horizon_start=_24H_START,
+            horizon_end=_24H_END,
+            scenario_id=_SCENARIO_ID,
+            station_catalog_version=_CATALOG_VERSION,
         )
         # Same orbit → same results regardless of wrapped propagator
         assert [p.pass_id for p in p1] == [p.pass_id for p in p2]
@@ -423,6 +467,7 @@ class TestPropagatorInjection:
 # ---------------------------------------------------------------------------
 # Input validation (Part F)
 # ---------------------------------------------------------------------------
+
 
 class TestInputValidation:
     def test_naive_horizon_start_rejected(self) -> None:
@@ -527,12 +572,15 @@ class TestInputValidation:
 # compute_passes_from_catalog
 # ---------------------------------------------------------------------------
 
+
 class TestComputePassesFromCatalog:
     def test_catalog_version_is_passed_through(self) -> None:
         """compute_passes_from_catalog must stamp catalog.catalog_version onto passes."""
         demo_path = (
             Path(__file__).resolve().parent.parent.parent.parent
-            / "data" / "catalogs" / "stations.demo.json"
+            / "data"
+            / "catalogs"
+            / "stations.demo.json"
         )
         catalog = load_catalog_from_file(demo_path)
         sel = StationSelection(allow_all_eligible=True)

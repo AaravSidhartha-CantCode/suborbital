@@ -11,20 +11,22 @@ from agcc.domain.common import Provenance, _require_utc, _validate_id
 from agcc.domain.enums import Band, CostModel
 
 # Fields that always require provenance when populated
-_PROVENANCE_REQUIRED_FIELDS = frozenset({
-    "latitude_deg",
-    "longitude_deg",
-    "altitude_m",
-    "supported_bands",
-    "max_downlink_rate_mbps",
-    "minimum_elevation_deg",
-    "setup_s",
-    "teardown_s",
-    "cost_model",
-    "booking_cost",
-    "cost_per_minute",
-    "currency",
-})
+_PROVENANCE_REQUIRED_FIELDS = frozenset(
+    {
+        "latitude_deg",
+        "longitude_deg",
+        "altitude_m",
+        "supported_bands",
+        "max_downlink_rate_mbps",
+        "minimum_elevation_deg",
+        "setup_s",
+        "teardown_s",
+        "cost_model",
+        "booking_cost",
+        "cost_per_minute",
+        "currency",
+    }
+)
 
 
 class FieldProvenance(BaseModel):
@@ -48,9 +50,7 @@ class GroundStation(BaseModel):
 
     # Coordinates — must be sourced facts or explicitly marked simulation assumptions
     latitude_deg: float = Field(ge=-90.0, le=90.0, description="Geodetic latitude in degrees")
-    longitude_deg: float = Field(
-        ge=-180.0, lt=180.0, description="Geodetic longitude in degrees"
-    )
+    longitude_deg: float = Field(ge=-180.0, lt=180.0, description="Geodetic longitude in degrees")
     altitude_m: float = Field(ge=0.0, description="Altitude above WGS-84 ellipsoid in meters")
 
     # RF capability — optional; None means not yet configured
@@ -73,9 +73,7 @@ class GroundStation(BaseModel):
     currency: str = Field(default="USD", min_length=1)
 
     # MVP constraint
-    simultaneous_contacts: int = Field(
-        default=1, ge=1, le=1, description="Fixed at 1 for MVP"
-    )
+    simultaneous_contacts: int = Field(default=1, ge=1, le=1, description="Fixed at 1 for MVP")
 
     # Field-level provenance
     field_provenance: FieldProvenance = Field(default_factory=FieldProvenance)
@@ -167,6 +165,7 @@ class StationCatalog(BaseModel):
         ids = [s.station_id for s in self.stations]
         if len(ids) != len(set(ids)):
             from collections import Counter
+
             dupes = [sid for sid, cnt in Counter(ids).items() if cnt > 1]
             raise ValueError(f"Duplicate station IDs in catalog: {dupes}")
         return self

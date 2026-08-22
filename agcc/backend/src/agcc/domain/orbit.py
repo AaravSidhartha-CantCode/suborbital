@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from agcc.domain.common import Provenance, _require_utc, _validate_id
-from agcc.domain.enums import Band, OrbitInputMode
+from agcc.domain.enums import Band, LinkPolarization, OrbitInputMode
 
 # ---------------------------------------------------------------------------
 # Band ↔ carrier-frequency validation table (fixed; not user-configurable)
@@ -18,9 +18,9 @@ from agcc.domain.enums import Band, OrbitInputMode
 BAND_FREQUENCY_RANGES_GHZ: dict[Band, tuple[float, float]] = {
     Band.VHF: (0.030, 0.300),
     Band.UHF: (0.300, 1.000),
-    Band.S:   (2.000, 4.000),
-    Band.X:   (8.000, 12.000),
-    Band.KA:  (26.500, 40.000),
+    Band.S: (2.000, 4.000),
+    Band.X: (8.000, 12.000),
+    Band.KA: (26.500, 40.000),
 }
 
 # Fixed physical constants — not user-configurable
@@ -80,6 +80,9 @@ class SatelliteCommunications(BaseModel):
     max_downlink_rate_mbps: float = Field(gt=0.0, description="Maximum downlink rate in Mbit/s")
     protocol_efficiency: float = Field(
         gt=0.0, le=1.0, description="Protocol efficiency factor in (0, 1]"
+    )
+    polarization: LinkPolarization = Field(
+        description="Required downlink polarization for the ITU-R P.838 rain model"
     )
     min_elevation_deg: float = Field(
         ge=0.0, le=90.0, description="Minimum elevation angle for contact in degrees"

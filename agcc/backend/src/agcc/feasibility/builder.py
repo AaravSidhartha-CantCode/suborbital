@@ -13,7 +13,7 @@ Each rejected record is retained with one or more RejectionCode values.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Sequence
 
@@ -41,11 +41,13 @@ class EligiblePassBuilder:
         *,
         satellite_band: Band,
         deadline: datetime,
-        max_budget_usd: float,
+        max_budget_usd: Decimal | float,
+        release_at: datetime | None = None,
     ) -> None:
         self._band = satellite_band
         self._deadline = deadline
-        self._budget = max_budget_usd
+        self._budget = Decimal(str(max_budget_usd))
+        self._release_at = release_at or datetime.min.replace(tzinfo=timezone.utc)
 
     def build(
         self,
@@ -57,14 +59,11 @@ class EligiblePassBuilder:
         rejection_codes: list[RejectionCode] = []
 
         # 1. Deadline: pass must start before the deadline
-        if pass_.start_at >= self._deadline:
+        if pass_.start_at >= self._deadline or pass_.end_at <= self._release_at:
             rejection_codes.append(RejectionCode.DEADLINE_MISSED)
 
         # 2. Band compatibility
-        if (
-            station.supported_bands is None
-            or self._band not in station.supported_bands
-        ):
+        if station.supported_bands is None or self._band not in station.supported_bands:
             rejection_codes.append(RejectionCode.INCOMPATIBLE_BAND)
 
         # 3. Station availability
@@ -81,7 +80,7 @@ class EligiblePassBuilder:
             station.booking_cost,
             station.cost_per_minute,
         )
-        if cost > Decimal(str(self._budget)):
+        if cost > self._budget:
             rejection_codes.append(RejectionCode.BUDGET_EXCEEDED)
 
         return EligiblePassRecord(

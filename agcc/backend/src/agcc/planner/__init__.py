@@ -32,7 +32,7 @@ from __future__ import annotations
 import hashlib
 import math
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Sequence
@@ -40,6 +40,7 @@ from typing import Sequence
 from pydantic import BaseModel, Field, field_validator
 
 from agcc.domain.common import _require_utc, _validate_id
+from agcc.domain.enums import ContactCommitment
 from agcc.domain.mission import PlanningPreference
 from agcc.domain.stations import GroundStation
 from agcc.feasibility import EligiblePassRecord
@@ -84,12 +85,18 @@ class PlannedContact(BaseModel):
 
     # Volume allocated to this contact (trimmed on the last contact)
     allocated_volume_mb: float = Field(ge=0.0)
+    reserved_capacity_mb: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Physical capacity inside the approved contact reservation",
+    )
 
     # Billable cost for this contact (Decimal string)
     contact_cost_decimal: str = Field(description="Contact cost as Decimal string")
 
     # Selection rationale
     selection_reasons: list[str] = Field(default_factory=list)
+    commitment: ContactCommitment = ContactCommitment.PLANNED
 
     @field_validator("contact_id", mode="before")
     @classmethod
@@ -214,10 +221,18 @@ def _build_slices(record: EligiblePassRecord, station: GroundStation) -> list[_S
     total_cap = record.capacity.usable_capacity_mb
     slices: list[_Slice] = []
 
-    # Slice windows are based on the pass's start/end (whole pass interval).
-    # Capacity is distributed proportionally by slice duration / usable_duration.
-    t = pass_.start_at.timestamp()
-    end_ts = pass_.end_at.timestamp()
+    # Task 10 slices only the usable reservation.  CandidatePass carries the
+    # usable duration, while the station owns the setup/teardown policy.
+    usable_start = pass_.start_at + timedelta(seconds=station.setup_s)
+    usable_end = pass_.end_at - timedelta(seconds=station.teardown_s)
+    actual_usable_s = (usable_end - usable_start).total_seconds()
+    if actual_usable_s < _SLICE_S:
+        return []
+    # Reject inconsistent upstream records instead of multiplying capacity.
+    usable_s = min(usable_s, actual_usable_s)
+    usable_end = usable_start + timedelta(seconds=usable_s)
+    t = usable_start.timestamp()
+    end_ts = usable_end.timestamp()
     idx = 0
 
     while t < end_ts:
@@ -258,9 +273,7 @@ def _contact_cost(duration_s: float, station: GroundStation) -> Decimal:
 
 
 def _contact_id(pass_id: str, first_slice_index: int) -> str:
-    digest = hashlib.sha256(
-        f"contact|{pass_id}|{first_slice_index}".encode()
-    ).hexdigest()[:16]
+    digest = hashlib.sha256(f"contact|{pass_id}|{first_slice_index}".encode()).hexdigest()[:16]
     return f"contact_{digest}"
 
 
@@ -293,7 +306,8 @@ def _greedy_select(
     required_volume_mb: float,
     deadline: datetime,
     maximum_budget: Decimal,
-    score_key: object,  # Callable[[_Slice, Decimal], tuple[...]]
+    mission_window_start: datetime,
+    score_key: object,
 ) -> tuple[list[_Slice], bool]:
     """Generic greedy selection loop used by all three strategies.
 
@@ -301,44 +315,62 @@ def _greedy_select(
     One satellite time-slot may only serve one station.
     """
     from typing import Any, Callable
-    key_fn: Callable[[_Slice, Decimal], Any] = score_key  # type: ignore[assignment]
+
+    key_fn: Callable[[_Slice, Decimal, list[_Slice]], Any] = score_key  # type: ignore[assignment]
 
     running_cost = _ZERO
     selected: list[_Slice] = []
-
-    # Sort once by score for determinism
-    ranked = sorted(slices, key=lambda s: key_fn(s, running_cost))
+    remaining_candidates = list(slices)
 
     remaining = required_volume_mb
     deadline_ts = deadline.timestamp()
     committed_pass_ids: set[str] = set()
 
-    for s in ranked:
-        if remaining <= 0.0:
+    while remaining > 0.0 and remaining_candidates:
+        # Marginal cost changes whenever a slice extends an existing contact,
+        # therefore ranking must be recomputed after every choice.
+        ranked = sorted(
+            remaining_candidates,
+            key=lambda candidate: key_fn(candidate, running_cost, selected),
+        )
+        chosen: _Slice | None = None
+        chosen_inc = _ZERO
+        for s in ranked:
+            # Deadline: slice must end by deadline
+            if s.start_at < mission_window_start or s.end_at.timestamp() > deadline_ts:
+                continue
+            same_pass = [x for x in selected if x.pass_id == s.pass_id]
+            if same_pass:
+                indexes = {x.slice_index for x in same_pass}
+                if s.slice_index - 1 not in indexes and s.slice_index + 1 not in indexes:
+                    continue
+            elif s.duration_s < _SLICE_S:
+                continue
+            # Satellite single-station constraint: only one station per time slot.
+            # Slices from the same pass are allowed (they extend the same contact).
+            # But two different passes cannot overlap in time.
+            # We enforce: if any already-selected pass overlaps this slice's time,
+            # skip it — unless it's the same pass.
+            if s.pass_id not in committed_pass_ids:
+                # Check time overlap with any already-selected different pass
+                overlap = _time_overlaps(s, selected)
+                if overlap:
+                    continue
+
+            # Budget check
+            inc = _incremental_cost(s, selected, running_cost)
+            if running_cost + inc > maximum_budget:
+                continue
+            chosen = s
+            chosen_inc = inc
             break
-        # Deadline: slice must end by deadline
-        if s.end_at.timestamp() > deadline_ts:
-            continue
-        # Satellite single-station constraint: only one station per time slot.
-        # Slices from the same pass are allowed (they extend the same contact).
-        # But two different passes cannot overlap in time.
-        # We enforce: if any already-selected pass overlaps this slice's time,
-        # skip it — unless it's the same pass.
-        if s.pass_id not in committed_pass_ids:
-            # Check time overlap with any already-selected different pass
-            overlap = _time_overlaps(s, selected)
-            if overlap:
-                continue  # satellite busy at this time with another contact
-
-        # Budget check
-        inc = _incremental_cost(s, selected, running_cost)
-        if running_cost + inc > maximum_budget:
-            continue
-
-        selected.append(s)
-        committed_pass_ids.add(s.pass_id)
-        running_cost += inc
-        remaining -= s.capacity_mb
+        if chosen is None:
+            break
+        selected.append(chosen)
+        remaining_candidates.remove(chosen)
+        committed_pass_ids.add(chosen.pass_id)
+        running_cost += chosen_inc
+        remaining -= chosen.capacity_mb
 
     success = remaining <= 0.0
     return selected, success
@@ -387,23 +419,33 @@ def _build_contacts(
     required_volume_mb: float,
 ) -> tuple[list[PlannedContact], Decimal, datetime | None]:
     """Merge adjacent slices per pass; trim last allocation; build PlannedContact list."""
-    # Group by pass_id, preserving first-appearance order
-    groups: dict[str, list[_Slice]] = defaultdict(list)
-    pass_order: list[str] = []
+    # Contiguous runs are separate contacts.  This prevents gaps from being
+    # hidden inside one billed interval.
+    by_pass: dict[str, list[_Slice]] = defaultdict(list)
     for s in selected:
-        if s.pass_id not in groups:
-            pass_order.append(s.pass_id)
-        groups[s.pass_id].append(s)
+        by_pass[s.pass_id].append(s)
+    groups: list[list[_Slice]] = []
+    for pass_slices in by_pass.values():
+        ordered = sorted(pass_slices, key=lambda item: item.slice_index)
+        run = [ordered[0]]
+        for item in ordered[1:]:
+            if item.slice_index == run[-1].slice_index + 1:
+                run.append(item)
+            else:
+                groups.append(run)
+                run = [item]
+        groups.append(run)
+    groups.sort(key=lambda group: (group[0].start_at, group[0].station_id))
 
     contacts: list[PlannedContact] = []
     total_cost = _ZERO
     remaining = required_volume_mb
     completion_at: datetime | None = None
 
-    for pid in pass_order:
+    for grp in groups:
         if remaining <= 0.0:
             break
-        grp = groups[pid]
+        pid = grp[0].pass_id
         station = grp[0].station
 
         vol = sum(s.capacity_mb for s in grp)
@@ -416,20 +458,27 @@ def _build_contacts(
 
         cid = _contact_id(pid, grp[0].slice_index)
 
-        contacts.append(PlannedContact(
-            contact_id=cid,
-            pass_id=pid,
-            station_id=grp[0].station_id,
-            start_at=start_at,
-            end_at=end_at,
-            duration_s=dur_s,
-            allocated_volume_mb=allocated,
-            contact_cost_decimal=str(cost),
-            selection_reasons=["preference_selected"],
-        ))
+        contacts.append(
+            PlannedContact(
+                contact_id=cid,
+                pass_id=pid,
+                station_id=grp[0].station_id,
+                start_at=start_at,
+                end_at=end_at,
+                duration_s=dur_s,
+                allocated_volume_mb=allocated,
+                reserved_capacity_mb=vol,
+                contact_cost_decimal=str(cost),
+                selection_reasons=[
+                    "eligible_pass",
+                    "preference_ranked",
+                    "hard_constraints_validated",
+                ],
+            )
+        )
         total_cost += cost
         remaining -= allocated
-        completion_at = end_at
+        completion_at = max(completion_at, end_at) if completion_at else end_at
 
     return contacts, total_cost, completion_at
 
@@ -516,8 +565,7 @@ class ContactPlanner:
         planned_vol = sum(c.allocated_volume_mb for c in contacts)
         selected_pass_ids = {s.pass_id for s in selected}
         unused_ids = [
-            r.pass_.pass_id for r in only_eligible
-            if r.pass_.pass_id not in selected_pass_ids
+            r.pass_.pass_id for r in only_eligible if r.pass_.pass_id not in selected_pass_ids
         ]
 
         return ContactPlan(
@@ -551,27 +599,42 @@ class ContactPlanner:
         deadline_ts = deadline.timestamp()
 
         if preference == PlanningPreference.FASTEST:
-            def score(s: _Slice, running: Decimal) -> tuple[float, float, str]:
-                inc = _incremental_cost(s, [], running)
-                return (s.end_at.timestamp(), float(inc), s.station_id)
+
+            def score(
+                s: _Slice, running: Decimal, selected: list[_Slice]
+            ) -> tuple[float, float, float, str]:
+                inc = _incremental_cost(s, selected, running)
+                return (s.end_at.timestamp(), -s.capacity_mb, float(inc), s.station_id)
 
         elif preference == PlanningPreference.LOWEST_COST:
-            def score(s: _Slice, running: Decimal) -> tuple[float, float, str]:
-                inc = _incremental_cost(s, [], running)
+
+            def score(
+                s: _Slice, running: Decimal, selected: list[_Slice]
+            ) -> tuple[float, float, float, str]:
+                inc = _incremental_cost(s, selected, running)
                 cap = s.capacity_mb if s.capacity_mb > 0 else 1e-9
-                return (float(inc) / cap, s.end_at.timestamp(), s.station_id)
+                return (float(inc) / cap, s.end_at.timestamp(), 0.0, s.station_id)
 
         else:  # BALANCED
-            def score(s: _Slice, running: Decimal) -> tuple[float, float, str]:
-                inc = _incremental_cost(s, [], running)
+
+            def score(
+                s: _Slice, running: Decimal, selected: list[_Slice]
+            ) -> tuple[float, float, float, str]:
+                inc = _incremental_cost(s, selected, running)
                 n_time = _norm_time(s.end_at.timestamp(), release_ts, deadline_ts)
                 n_cost = _norm_cost(running + inc, maximum_budget)
-                return (0.6 * n_time + 0.4 * n_cost, s.end_at.timestamp(), s.station_id)
+                return (
+                    0.6 * n_time + 0.4 * n_cost,
+                    s.end_at.timestamp(),
+                    0.0,
+                    s.station_id,
+                )
 
         return _greedy_select(
             slices=slices,
             required_volume_mb=required_volume_mb,
             deadline=deadline,
             maximum_budget=maximum_budget,
+            mission_window_start=mission_window_start,
             score_key=score,
         )

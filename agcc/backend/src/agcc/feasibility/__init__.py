@@ -40,6 +40,7 @@ from agcc.domain.planning import CandidatePass, CapacityEstimate
 # Feasibility status
 # ---------------------------------------------------------------------------
 
+
 class FeasibilityStatus(str, Enum):
     POTENTIALLY_FEASIBLE = "potentially_feasible"
     INFEASIBLE_CAPACITY = "infeasible_capacity"
@@ -51,6 +52,7 @@ class FeasibilityStatus(str, Enum):
 # ---------------------------------------------------------------------------
 # EligiblePassRecord
 # ---------------------------------------------------------------------------
+
 
 class EligiblePassRecord(BaseModel):
     """A candidate pass evaluated for mission eligibility.
@@ -77,6 +79,7 @@ class EligiblePassRecord(BaseModel):
 # ---------------------------------------------------------------------------
 # Relaxation suggestions (pure data, no application)
 # ---------------------------------------------------------------------------
+
 
 class RelaxationSuggestions(BaseModel):
     """Calculated (not applied) suggestions for resolving infeasibility."""
@@ -112,6 +115,7 @@ class RelaxationSuggestions(BaseModel):
 # FeasibilityReport
 # ---------------------------------------------------------------------------
 
+
 class FeasibilityReport(BaseModel):
     """Feasibility analysis output for a scenario + mission pair."""
 
@@ -127,9 +131,7 @@ class FeasibilityReport(BaseModel):
     capacity_shortfall_mb: float = Field(ge=0.0)
 
     # Cost bound (Decimal string)
-    minimum_possible_cost: str = Field(
-        description="Lower-bound cost estimate as Decimal string"
-    )
+    minimum_possible_cost: str = Field(description="Lower-bound cost estimate as Decimal string")
 
     # Deadline bound
     earliest_possible_completion_at: datetime | None = Field(
@@ -187,6 +189,7 @@ def compute_contact_cost(
 # FeasibilityChecker
 # ---------------------------------------------------------------------------
 
+
 class FeasibilityChecker:
     """Stateless feasibility evaluator.
 
@@ -225,7 +228,11 @@ class FeasibilityChecker:
         authorized_station_ids:
             Station IDs authorized in this scenario (for relaxation suggestions).
         """
+        maximum_budget = Decimal(str(maximum_budget))
         eligible = [r for r in records if r.is_eligible]
+        budget_relaxed = [
+            r for r in records if set(r.rejection_codes).issubset({RejectionCode.BUDGET_EXCEEDED})
+        ]
         total_count = len(records)
         eligible_count = len(eligible)
 
@@ -233,9 +240,7 @@ class FeasibilityChecker:
         eligible_sorted = sorted(eligible, key=lambda r: r.pass_.start_at)
 
         # --- Capacity bound ---
-        total_eligible_capacity_mb = sum(
-            r.capacity.usable_capacity_mb for r in eligible_sorted
-        )
+        total_eligible_capacity_mb = sum(r.capacity.usable_capacity_mb for r in eligible_sorted)
         capacity_shortfall_mb = max(0.0, required_volume_mb - total_eligible_capacity_mb)
 
         # --- Minimum cost lower bound (greedy cheapest-first) ---
@@ -263,11 +268,17 @@ class FeasibilityChecker:
 
         # --- Status determination ---
         has_unverified = any(
-            r.capacity.weather_data_quality in ("unavailable", "stale")
-            for r in eligible_sorted
+            r.capacity.weather_data_quality in ("unavailable", "stale") for r in eligible_sorted
         )
 
-        if capacity_shortfall_mb > 0.0:
+        budget_relaxed_capacity = sum(r.capacity.usable_capacity_mb for r in budget_relaxed)
+        if (
+            capacity_shortfall_mb > 0.0
+            and budget_relaxed_capacity >= required_volume_mb
+            and any(RejectionCode.BUDGET_EXCEEDED in r.rejection_codes for r in records)
+        ):
+            status = FeasibilityStatus.INFEASIBLE_BUDGET
+        elif capacity_shortfall_mb > 0.0:
             status = FeasibilityStatus.INFEASIBLE_CAPACITY
         elif earliest_completion is not None and earliest_completion > deadline:
             status = FeasibilityStatus.INFEASIBLE_DEADLINE
@@ -322,8 +333,10 @@ class FeasibilityChecker:
 
         # 1. Deadline extension: how much later do we need the deadline to be?
         deadline_extension_s: float | None = None
-        all_records_sorted = sorted(records, key=lambda r: r.pass_.start_at)
-        # Include even ineligible records for deadline suggestions
+        deadline_candidates = [
+            r for r in records if set(r.rejection_codes).issubset({RejectionCode.DEADLINE_MISSED})
+        ]
+        all_records_sorted = sorted(deadline_candidates, key=lambda r: r.pass_.start_at)
         acc = 0.0
         for r in all_records_sorted:
             if r.capacity.usable_capacity_mb > 0:
@@ -336,7 +349,11 @@ class FeasibilityChecker:
 
         # 2. Additional budget: what does the cheapest set exceeding volume cost?
         eligible_sorted_by_cost = sorted(
-            [r for r in records if r.is_eligible],
+            [
+                r
+                for r in records
+                if set(r.rejection_codes).issubset({RejectionCode.BUDGET_EXCEEDED})
+            ],
             key=lambda r: Decimal(r.contact_cost_decimal),
         )
         budget_dec = maximum_budget
@@ -357,9 +374,7 @@ class FeasibilityChecker:
         excluded_candidates: list[str] = []
         if catalog_station_ids is not None and authorized_station_ids is not None:
             authorized_set = set(authorized_station_ids)
-            excluded_candidates = [
-                sid for sid in catalog_station_ids if sid not in authorized_set
-            ]
+            excluded_candidates = [sid for sid in catalog_station_ids if sid not in authorized_set]
 
         # 4. Required volume reduction
         required_reduction: float | None = None
