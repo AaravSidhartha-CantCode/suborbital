@@ -608,6 +608,28 @@ def create_v1_router(container: AppContainer) -> APIRouter:
         decision = session.replanner.approve(proposal_id)
         current = runtime(session)
         current.plans[decision.active_plan.plan_id] = decision.active_plan
+        
+        # 1. Expand authorized stations
+        authorized = current.definition.scenario.constraints.station_selection.authorized_station_ids
+        for contact in decision.active_plan.contacts:
+            if contact.station_id not in authorized:
+                authorized.append(contact.station_id)
+                
+        # 2. Increase maximum budget if required
+        from decimal import Decimal
+        plan_cost = sum(Decimal(contact.contact_cost_decimal) for contact in decision.active_plan.contacts)
+        if plan_cost > current.definition.scenario.constraints.maximum_budget:
+            current.definition.scenario.constraints.maximum_budget = plan_cost
+            
+        # 3. Extend mission deadline if required
+        if decision.active_plan.contacts:
+            latest_end = max(contact.end_at for contact in decision.active_plan.contacts)
+            if latest_end > current.definition.mission.deadline_at:
+                current.definition.mission.deadline_at = latest_end
+
+        session.service.generate_passes(current.definition.scenario.scenario_id)
+        session.service.compute_capacities(current.definition.scenario.scenario_id)
+
         session.service.activate_replan(
             current.definition.scenario.scenario_id, decision.active_plan.plan_id
         )
