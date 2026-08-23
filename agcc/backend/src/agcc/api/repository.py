@@ -28,6 +28,7 @@ class ScenarioRuntime:
     simulation: SimulationEngine | None = None
     simulation_paused: bool = False
     simulation_speed: str = "1x"
+    simulation_capacity_policy: str = "frozen"
     simulation_wall_anchor: datetime | None = None
     simulation_wall_remainder_s: float = 0.0
     event_store: SessionEventStore = field(default_factory=SessionEventStore)

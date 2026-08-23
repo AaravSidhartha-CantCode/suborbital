@@ -281,6 +281,7 @@ class SimulationEngine:
         store: SessionEventStore,
         anomaly_multiplier: float = 1.0,
         rate_provider: Callable[[PlannedContact, datetime], float] | None = None,
+        frozen_capacity_policy: bool = False,
         initial_delivered_mb: float = 0.0,
     ) -> None:
         self._plan = plan
@@ -292,6 +293,7 @@ class SimulationEngine:
         self._store = store
         self._anomaly_multiplier = anomaly_multiplier
         self._rate_provider = rate_provider
+        self._frozen_capacity_policy = frozen_capacity_policy
 
         # Mutable state
         self._seq = 0
@@ -511,12 +513,23 @@ class SimulationEngine:
     def _close_active_contact(self, sim_now: datetime) -> None:
         contact = self._active_contact
         assert contact is not None
+        # A Prediction run executes the already-integrated frozen ledger.  Close
+        # the contact on the same authoritative pass boundary used by planning,
+        # rather than allowing browser polling cadence to discard the fractional
+        # tail of its allocation.  Anomaly branches deliberately bypass this
+        # reconciliation so their modeled degradation remains observable.
+        if self._frozen_capacity_policy and self._anomaly_multiplier == 1.0:
+            self._settle_frozen_contact(contact, sim_now)
         self._emit(
             EventType.CONTACT_ENDED,
             sim_now,
             contact_id=contact.contact_id,
             delivered_volume_mb=self._active_contact_delivered_mb,
         )
+        allocations_before = {
+            item.contact_id: item.assigned_volume_mb
+            for item in self._dispatch.allocations
+        }
         self._dispatch, self._last_residual_shortfall = DispatchRedistributor().record_delivery(
             self._dispatch,
             contact.contact_id,
@@ -524,6 +537,24 @@ class SimulationEngine:
             sim_now,
             self._contacts_sorted,
         )
+        for allocation in self._dispatch.allocations:
+            if allocation.contact_id == contact.contact_id:
+                continue
+            delta = allocation.assigned_volume_mb - allocations_before.get(
+                allocation.contact_id, 0.0
+            )
+            if delta > 1e-9:
+                self._emit(
+                    EventType.DATA_REROUTED,
+                    sim_now,
+                    contact_id=allocation.contact_id,
+                    delivered_volume_mb=delta,
+                    description=(
+                        f"source_contact={contact.contact_id}; "
+                        f"destination_contact={allocation.contact_id}; "
+                        f"rerouted_volume_mb={delta:.6f}"
+                    ),
+                )
         self._build_fragment_queues()
         self._active_contact = None
         self._active_contact_delivered_mb = 0.0
@@ -538,6 +569,38 @@ class SimulationEngine:
             )
             self._mission_ended = True
             self._finished = True
+
+    def _settle_frozen_contact(self, contact: PlannedContact, sim_now: datetime) -> None:
+        """Consume the exact frozen allocation at its authoritative end boundary."""
+        remaining = max(0.0, contact.allocated_volume_mb - self._active_contact_delivered_mb)
+        queue = self._contact_fragment_queues.get(contact.contact_id, [])
+        while remaining > 1e-9 and queue:
+            fragment = queue.pop(0)
+            fragment_remaining = self._fragment_remaining_mb.pop(
+                fragment.fragment_id, fragment.volume_mb
+            )
+            delivered = min(fragment_remaining, remaining)
+            self._delivered_mb += delivered
+            self._active_contact_delivered_mb += delivered
+            remaining -= delivered
+            event_type = (
+                EventType.FRAGMENT_DELIVERED
+                if delivered >= fragment_remaining - 1e-9
+                else EventType.FRAGMENT_PARTIAL
+            )
+            self._emit(
+                event_type,
+                sim_now,
+                contact_id=contact.contact_id,
+                fragment_id=fragment.fragment_id,
+                delivered_volume_mb=delivered,
+                description="frozen ledger reconciled at planned contact boundary",
+            )
+            if delivered < fragment_remaining - 1e-9:
+                self._fragment_remaining_mb[fragment.fragment_id] = (
+                    fragment_remaining - delivered
+                )
+                queue.insert(0, fragment)
 
     def _execute_tick(self, contact: PlannedContact, sim_now: datetime) -> None:
         """Execute one 1-second simulation tick within an active contact."""
@@ -683,6 +746,20 @@ class SimulationEngine:
 
     def _remaining_planned_capacity(self, sim_now: datetime) -> float:
         """Sum of allocated_volume_mb for all future+active contacts."""
+        if self._frozen_capacity_policy:
+            # Prediction consumes the exact frozen dispatch ledger. Assigned
+            # fragments are mission volume, not a second physical-capacity estimate.
+            viable_contacts = {
+                item.contact_id
+                for item in self._contacts_sorted
+                if item.end_at > sim_now
+            }
+            return sum(
+                fragment.volume_mb
+                for fragment in self._dispatch.fragments
+                if fragment.assigned_contact_id in viable_contacts
+                and fragment.state in {FragmentState.ASSIGNED, FragmentState.TRANSMITTING}
+            )
         total = 0.0
         allocations = {item.contact_id: item for item in self._dispatch.allocations}
         for c in self._contacts_sorted:

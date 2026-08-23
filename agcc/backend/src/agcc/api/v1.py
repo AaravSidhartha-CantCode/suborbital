@@ -6,6 +6,7 @@ import json
 import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -22,6 +23,7 @@ from agcc.api.contracts import (
     ProposalDecisionRequest,
     ReplanRequest,
     ScenarioCreateRequest,
+    SimulationForkRequest,
     SimulationStartRequest,
 )
 from agcc.api.service import AgccApplicationService
@@ -112,10 +114,23 @@ class AnomalyChatRequest(BaseModel):
 def _watsonx_failure(exc: Exception) -> dict[str, str]:
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
-        if status in {401, 403}:
+        if status == 401:
             return {
                 "code": "WATSONX_AUTHENTICATION_FAILED",
-                "message": "WatsonX rejected the IAM credentials or project access.",
+                "message": (
+                    "WatsonX rejected the IAM token. Verify AGCC_GRANITE_API_KEY contains "
+                    "a valid raw IBM Cloud API key; the backend exchanges and refreshes IAM "
+                    "tokens automatically. Restart the backend after changing it."
+                ),
+            }
+        if status == 403:
+            return {
+                "code": "WATSONX_PROJECT_ACCESS_DENIED",
+                "message": (
+                    "IBM IAM authenticated, but this identity cannot use the configured "
+                    "AGCC_GRANITE_PROJECT_ID/model in Frankfurt. Grant the API-key owner "
+                    "watsonx.ai project access and the required IBM Cloud IAM service role."
+                ),
             }
         if status == 404:
             return {
@@ -294,7 +309,11 @@ def create_v1_router(container: AppContainer) -> APIRouter:
     ) -> Any:
         ident = scenario_id(session)
         session.service.start_simulation(
-            ident, plan_id=body.plan_id, sim_start_at=body.sim_start_at, speed=body.speed.value
+            ident,
+            plan_id=body.plan_id,
+            sim_start_at=body.sim_start_at,
+            speed=body.speed.value,
+            capacity_policy=body.capacity_policy,
         )
         return session.service.simulation_state(ident)
 
@@ -316,6 +335,33 @@ def create_v1_router(container: AppContainer) -> APIRouter:
     ) -> Any:
         ident = scenario_id(session)
         session.service.set_simulation_speed(ident, body.speed.value)
+        return session.service.simulation_state(ident)
+
+    @router.post("/simulation/fork", operation_id="forkSimulation")
+    def fork_simulation(
+        body: SimulationForkRequest, session: SessionState = Depends(state)
+    ) -> Any:
+        """Reset this isolated session to a supplied prediction snapshot."""
+        ident = scenario_id(session)
+        current = session.service.get_runtime(ident)
+        if not (
+            current.definition.mission.release_at
+            <= body.sim_time
+            <= current.definition.mission.deadline_at
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "FORK_TIME_OUTSIDE_MISSION"},
+            )
+        session.service.start_simulation(
+            ident,
+            plan_id=current.current_plan_id,
+            sim_start_at=body.sim_time,
+            speed="paused",
+            initial_delivered_mb=min(
+                body.delivered_mb, current.definition.mission.required_volume_mb
+            ),
+        )
         return session.service.simulation_state(ident)
 
     @router.get("/simulation/state", operation_id="getSimulationState")
@@ -500,18 +546,39 @@ def create_v1_router(container: AppContainer) -> APIRouter:
             if item.contact_id in affected_contact_ids and item.start_at > replan_at
         }
         proposed_id = f"plan_replan{len(session.replanner.proposals) + 1:08d}"
-        candidate = session.service.create_plan(
+        required_remaining = max(
+            0.0,
+            current.definition.mission.required_volume_mb
+            - (current.simulation.delivered_mb if current.simulation else 0.0),
+        )
+        future = session.service.create_plan(
             current.definition.scenario.scenario_id,
             proposed_id,
             excluded_pass_ids=excluded_pass_ids,
             activate=False,
+            required_volume_mb=required_remaining,
+            mission_window_start=replan_at,
         )
+        candidate = None
+        if future.status.value == "feasible":
+            preserved = [item for item in old.contacts if item.start_at <= replan_at]
+            combined_contacts = sorted(
+                [*preserved, *future.contacts], key=lambda item: item.start_at
+            )
+            combined_cost = sum(
+                Decimal(item.contact_cost_decimal) for item in combined_contacts
+            )
+            candidate = future.model_copy(update={
+                "required_volume_mb": current.definition.mission.required_volume_mb,
+                "planned_volume_mb": sum(
+                    item.allocated_volume_mb for item in combined_contacts
+                ),
+                "contacts": combined_contacts,
+                "estimated_total_cost": str(combined_cost),
+            })
+            current.plans[candidate.plan_id] = candidate
         current.current_plan_id = old.plan_id
-        shortfall = (
-            current.simulation.last_residual_shortfall.shortfall_mb
-            if current.simulation and current.simulation.last_residual_shortfall
-            else 0.0
-        )
+        shortfall = current.simulation.predicted_shortfall_mb if current.simulation else 0.0
         suggestions = current.feasibility.suggestions if current.feasibility else None
         return session.replanner.propose(
             current_plan=old,

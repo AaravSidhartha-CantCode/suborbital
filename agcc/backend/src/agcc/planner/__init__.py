@@ -143,6 +143,7 @@ class ContactPlan(BaseModel):
     rejected_opportunity_records: list[EligiblePassRecord] = Field(default_factory=list)
 
     algorithm_version: str = ALGORITHM_VERSION
+    validation_violations: list[str] = Field(default_factory=list)
 
     @field_validator("plan_id", mode="before")
     @classmethod
@@ -324,7 +325,6 @@ def _greedy_select(
 
     remaining = required_volume_mb
     deadline_ts = deadline.timestamp()
-    committed_pass_ids: set[str] = set()
 
     while remaining > 0.0 and remaining_candidates:
         # Marginal cost changes whenever a slice extends an existing contact,
@@ -351,11 +351,10 @@ def _greedy_select(
             # But two different passes cannot overlap in time.
             # We enforce: if any already-selected pass overlaps this slice's time,
             # skip it — unless it's the same pass.
-            if s.pass_id not in committed_pass_ids:
-                # Check time overlap with any already-selected different pass
-                overlap = _time_overlaps(s, selected)
-                if overlap:
-                    continue
+            # Always check against other selected passes. A previously committed
+            # pass can be extended into the time occupied by a different station.
+            if _time_overlaps(s, selected):
+                continue
 
             # Budget check
             inc = _incremental_cost(s, selected, running_cost)
@@ -368,7 +367,6 @@ def _greedy_select(
             break
         selected.append(chosen)
         remaining_candidates.remove(chosen)
-        committed_pass_ids.add(chosen.pass_id)
         running_cost += chosen_inc
         remaining -= chosen.capacity_mb
 
@@ -483,6 +481,45 @@ def _build_contacts(
     return contacts, total_cost, completion_at
 
 
+def _final_plan_violations(
+    *,
+    contacts: list[PlannedContact],
+    required_volume_mb: float,
+    mission_window_start: datetime,
+    deadline: datetime,
+    maximum_budget: Decimal,
+) -> list[str]:
+    """Validate the merged ledger that execution will actually consume."""
+    violations: list[str] = []
+    allocated = sum(item.allocated_volume_mb for item in contacts)
+    if abs(allocated - required_volume_mb) > 1e-6:
+        violations.append(
+            f"allocated_volume={allocated:.6f} != required_volume={required_volume_mb:.6f}"
+        )
+    for contact in contacts:
+        frozen_capacity = (
+            contact.reserved_capacity_mb
+            if contact.reserved_capacity_mb is not None
+            else contact.allocated_volume_mb
+        )
+        if contact.allocated_volume_mb > frozen_capacity + 1e-6:
+            violations.append(f"{contact.contact_id}: allocation exceeds frozen capacity")
+        if contact.start_at < mission_window_start or contact.end_at > deadline:
+            violations.append(f"{contact.contact_id}: contact outside mission window")
+    ordered = sorted(contacts, key=lambda item: item.start_at)
+    for previous, current in zip(ordered, ordered[1:], strict=False):
+        if current.start_at < previous.end_at:
+            violations.append(
+                f"{previous.contact_id}/{current.contact_id}: overlapping contacts"
+            )
+    total_cost = sum(Decimal(item.contact_cost_decimal) for item in contacts)
+    if total_cost > maximum_budget:
+        violations.append(
+            f"plan_cost={total_cost} exceeds maximum_budget={maximum_budget}"
+        )
+    return violations
+
+
 # ---------------------------------------------------------------------------
 # ContactPlanner
 # ---------------------------------------------------------------------------
@@ -531,17 +568,51 @@ class ContactPlanner:
                 continue
             all_slices.extend(_build_slices(record, station))
 
-        # Dispatch to preference strategy
-        selected, success = self._dispatch(
-            slices=all_slices,
-            required_volume_mb=required_volume_mb,
-            deadline=deadline,
-            mission_window_start=mission_window_start,
-            maximum_budget=maximum_budget,
-            preference=preference,
-        )
+        # Preference controls the first deterministic search, but is not a hard
+        # constraint. Try the other orderings before declaring infeasibility.
+        strategies = list(dict.fromkeys([
+            preference,
+            PlanningPreference.FASTEST,
+            PlanningPreference.LOWEST_COST,
+            PlanningPreference.BALANCED,
+        ]))
+        selected: list[_Slice] = []
+        contacts: list[PlannedContact] = []
+        total_cost = _ZERO
+        completion_at: datetime | None = None
+        violations: list[str] = []
+        for strategy in strategies:
+            candidate, success = self._dispatch(
+                slices=all_slices,
+                required_volume_mb=required_volume_mb,
+                deadline=deadline,
+                mission_window_start=mission_window_start,
+                maximum_budget=maximum_budget,
+                preference=strategy,
+            )
+            if not success:
+                continue
+            candidate_contacts, candidate_cost, candidate_completion = _build_contacts(
+                candidate, required_volume_mb
+            )
+            candidate_violations = _final_plan_violations(
+                contacts=candidate_contacts,
+                required_volume_mb=required_volume_mb,
+                mission_window_start=mission_window_start,
+                deadline=deadline,
+                maximum_budget=maximum_budget,
+            )
+            if candidate_violations:
+                violations = candidate_violations
+                continue
+            selected = candidate
+            contacts = candidate_contacts
+            total_cost = candidate_cost
+            completion_at = candidate_completion
+            violations = []
+            break
 
-        if not success:
+        if not contacts:
             unused_ids = [r.pass_.pass_id for r in only_eligible]
             return ContactPlan(
                 plan_id=plan_id,
@@ -558,9 +629,8 @@ class ContactPlanner:
                 unused_opportunity_ids=unused_ids,
                 rejected_opportunity_records=rejected,
                 algorithm_version=ALGORITHM_VERSION,
+                validation_violations=violations,
             )
-
-        contacts, total_cost, completion_at = _build_contacts(selected, required_volume_mb)
 
         planned_vol = sum(c.allocated_volume_mb for c in contacts)
         selected_pass_ids = {s.pass_id for s in selected}
@@ -583,6 +653,7 @@ class ContactPlanner:
             unused_opportunity_ids=unused_ids,
             rejected_opportunity_records=rejected,
             algorithm_version=ALGORITHM_VERSION,
+            validation_violations=violations,
         )
 
     def _dispatch(

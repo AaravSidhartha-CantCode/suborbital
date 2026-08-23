@@ -7,6 +7,7 @@ import hashlib
 import importlib.metadata
 import os
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -402,25 +403,33 @@ class AgccApplicationService:
         *,
         excluded_pass_ids: set[str] | None = None,
         activate: bool = True,
+        required_volume_mb: float | None = None,
+        mission_window_start: datetime | None = None,
     ) -> ContactPlan:
         runtime = self.get_runtime(scenario_id)
         records = self._eligible_records(runtime)
         if excluded_pass_ids:
             records = [item for item in records if item.pass_.pass_id not in excluded_pass_ids]
         mission = runtime.definition.mission
+        required = (
+            required_volume_mb
+            if required_volume_mb is not None
+            else mission.required_volume_mb
+        )
+        window_start = mission_window_start or mission.release_at
         constraints = runtime.definition.scenario.constraints
         sequence = len(runtime.plans) + 1
         plan_id = requested_plan_id or self._stable_id(
-            "plan", scenario_id, str(sequence), str(mission.required_volume_mb)
+            "plan", scenario_id, str(sequence), str(required), window_start.isoformat()
         )
         stations = {station.station_id: station for station in self._stations(runtime)}
         plan = self.planner.plan(
             plan_id=plan_id,
             scenario_id=scenario_id,
             mission_id=mission.mission_id,
-            required_volume_mb=mission.required_volume_mb,
+            required_volume_mb=required,
             deadline=mission.deadline_at,
-            mission_window_start=mission.release_at,
+            mission_window_start=window_start,
             maximum_budget=constraints.maximum_budget,
             preference=constraints.planning_preference,
             eligible_records=records,
@@ -428,8 +437,51 @@ class AgccApplicationService:
         )
         runtime.plans[plan.plan_id] = plan
         if activate and plan.status == PlanStatus.FEASIBLE:
+            self._validate_plan_ledger(runtime, plan)
             runtime.current_plan_id = plan.plan_id
         return plan
+
+    def _validate_plan_ledger(
+        self, runtime: ScenarioRuntime, plan: ContactPlan
+    ) -> None:
+        """Reject any feasible label whose frozen contact ledger is contradictory."""
+        mission = runtime.definition.mission
+        constraints = runtime.definition.scenario.constraints
+        errors: list[str] = []
+        allocated = sum(item.allocated_volume_mb for item in plan.contacts)
+        if abs(allocated - mission.required_volume_mb) > 1e-6:
+            errors.append(
+                f"allocated_volume={allocated:.6f} != required_volume="
+                f"{mission.required_volume_mb:.6f}"
+            )
+        for contact in plan.contacts:
+            frozen_capacity = (
+                contact.reserved_capacity_mb
+                if contact.reserved_capacity_mb is not None
+                else contact.allocated_volume_mb
+            )
+            if contact.allocated_volume_mb > frozen_capacity + 1e-6:
+                errors.append(f"{contact.contact_id}: allocation exceeds frozen capacity")
+            if contact.start_at < mission.release_at or contact.end_at > mission.deadline_at:
+                errors.append(f"{contact.contact_id}: contact outside mission window")
+        ordered = sorted(plan.contacts, key=lambda item: item.start_at)
+        for previous, current in zip(ordered, ordered[1:], strict=False):
+            if current.start_at < previous.end_at:
+                errors.append(
+                    f"{previous.contact_id}/{current.contact_id}: overlapping contacts"
+                )
+        cost = sum(Decimal(item.contact_cost_decimal) for item in plan.contacts)
+        if cost > constraints.maximum_budget:
+            errors.append(
+                f"plan_cost={cost} exceeds maximum_budget={constraints.maximum_budget}"
+            )
+        if errors:
+            raise ApiServiceError(
+                409,
+                "PLAN_LEDGER_INCONSISTENT",
+                "Plan failed authoritative frozen-capacity preflight",
+                details={"violations": errors},
+            )
 
     def get_plan(self, scenario_id: str, plan_id: str) -> ContactPlan:
         runtime = self.get_runtime(scenario_id)
@@ -447,6 +499,7 @@ class AgccApplicationService:
         speed: str = "1x",
         initial_delivered_mb: float = 0.0,
         preserve_events: bool = False,
+        capacity_policy: str = "frozen",
     ) -> SimulationEngine:
         runtime = self.get_runtime(scenario_id)
         selected_plan_id = plan_id or runtime.current_plan_id
@@ -455,6 +508,7 @@ class AgccApplicationService:
         plan = self.get_plan(scenario_id, selected_plan_id)
         if plan.status != PlanStatus.FEASIBLE:
             raise ApiServiceError(409, "PLAN_NOT_FEASIBLE", "Simulation requires a feasible plan")
+        self._validate_plan_ledger(runtime, plan)
         plan = plan.model_copy(
             update={
                 "contacts": [
@@ -472,6 +526,13 @@ class AgccApplicationService:
         comms = runtime.definition.satellite.comms
 
         def rate_provider(contact: Any, at: datetime) -> float:
+            if capacity_policy == "frozen":
+                frozen_capacity = (
+                    contact.reserved_capacity_mb
+                    if contact.reserved_capacity_mb is not None
+                    else contact.allocated_volume_mb
+                )
+                return float(frozen_capacity * 8.0 / contact.duration_s)
             candidate = passes.get(contact.pass_id)
             station = stations.get(contact.station_id)
             if candidate is None or station is None:
@@ -511,11 +572,13 @@ class AgccApplicationService:
             store=runtime.event_store,
             anomaly_multiplier=1.0,
             rate_provider=rate_provider,
+            frozen_capacity_policy=capacity_policy == "frozen",
             initial_delivered_mb=initial_delivered_mb,
         )
         runtime.simulation.start(effective_start)
         runtime.simulation_paused = speed == "paused"
         runtime.simulation_speed = speed
+        runtime.simulation_capacity_policy = capacity_policy
         runtime.simulation_wall_anchor = datetime.now(timezone.utc)
         runtime.simulation_wall_remainder_s = 0.0
         self._publish(runtime)
@@ -538,6 +601,7 @@ class AgccApplicationService:
             speed=speed,
             initial_delivered_mb=delivered,
             preserve_events=True,
+            capacity_policy=runtime.simulation_capacity_policy,
         )
         if paused:
             runtime.simulation_paused = True
@@ -684,8 +748,26 @@ class AgccApplicationService:
         return decided
 
     def events(self, scenario_id: str) -> list[Any]:
-        return [
-            {
+        runtime = self.get_runtime(scenario_id)
+        plan = self._current_plan(runtime)
+        stations = {item.station_id: item.name for item in self.catalog.stations}
+        contacts = {item.contact_id: item for item in plan.contacts}
+        result = []
+        for event in runtime.event_store.all_events():
+            contact = contacts.get(event.contact_id or "")
+            source_name = None
+            destination_name = None
+            if event.event_type == EventType.DATA_REROUTED:
+                parts = dict(
+                    item.split("=", 1)
+                    for item in event.description.split("; ")
+                    if "=" in item
+                )
+                source = contacts.get(parts.get("source_contact", ""))
+                destination = contacts.get(parts.get("destination_contact", ""))
+                source_name = stations.get(source.station_id) if source else None
+                destination_name = stations.get(destination.station_id) if destination else None
+            result.append({
                 "event_id": event.event_id,
                 "sequence_number": event.sequence_number,
                 "event_type": event.event_type,
@@ -695,10 +777,14 @@ class AgccApplicationService:
                 "delivered_volume_mb": event.delivered_volume_mb,
                 "rate_mbps": event.rate_mbps,
                 "predicted_shortfall_mb": event.predicted_shortfall_mb,
+                "planned_volume_mb": contact.allocated_volume_mb if contact else None,
+                "planned_cost": contact.contact_cost_decimal if contact else None,
                 "description": event.description,
-            }
-            for event in self.get_runtime(scenario_id).event_store.all_events()
-        ]
+                "station_name": stations.get(contact.station_id) if contact else None,
+                "source_station_name": source_name,
+                "destination_station_name": destination_name,
+            })
+        return result
 
     def export_plan(self, scenario_id: str) -> dict[str, Any]:
         runtime = self.get_runtime(scenario_id)
@@ -712,12 +798,29 @@ class AgccApplicationService:
         sim_time = simulation.sim_time or runtime.definition.mission.release_at
         orbit_state = self.propagator.state_at(runtime.definition.satellite.orbit, sim_time)
         plan = self._current_plan(runtime)
+        ledger_allocated_mb = sum(item.allocated_volume_mb for item in plan.contacts)
+        ledger_capacity_mb = sum(
+            item.reserved_capacity_mb
+            if item.reserved_capacity_mb is not None
+            else item.allocated_volume_mb
+            for item in plan.contacts
+        )
         contacts_by_pass = {item.pass_id: item for item in plan.contacts}
         capacity_by_pass = {item.pass_id: item for item in runtime.capacities}
         station_by_id = {item.station_id: item for item in self.catalog.stations}
         active = simulation.active_contact
         approved_station_ids = {item.station_id for item in plan.contacts}
         contact_station = {item.contact_id: item.station_id for item in plan.contacts}
+        ended_events = {
+            item.contact_id: item
+            for item in runtime.event_store.all_events()
+            if item.event_type == EventType.CONTACT_ENDED and item.contact_id
+        }
+        cost_used = sum(
+            Decimal(contact.contact_cost_decimal)
+            for contact in plan.contacts
+            if contact.contact_id in ended_events
+        )
         anomalous_station_ids = {
             contact_station[contact_id]
             for anomaly in runtime.anomalies
@@ -735,8 +838,8 @@ class AgccApplicationService:
                 "contact_id": contact.contact_id if contact else None,
                 "station_id": candidate.station_id,
                 "station_name": station_by_id[candidate.station_id].name,
-                "start_at": candidate.start_at,
-                "end_at": candidate.end_at,
+                "start_at": contact.start_at if contact else candidate.start_at,
+                "end_at": contact.end_at if contact else candidate.end_at,
                 "volume_mb": (
                     contact.allocated_volume_mb if contact else
                     (capacity.usable_capacity_mb if capacity else 0.0)
@@ -745,6 +848,17 @@ class AgccApplicationService:
                 "reason": (
                     "; ".join(contact.selection_reasons) if contact else
                     "Geometrically visible and capacity-eligible, but not selected by the planner."
+                ),
+                "planned_cost": contact.contact_cost_decimal if contact else None,
+                "actual_volume_mb": (
+                    ended_events[contact.contact_id].delivered_volume_mb
+                    if contact and contact.contact_id in ended_events
+                    else 0.0
+                ),
+                "completed_at": (
+                    ended_events[contact.contact_id].sim_time
+                    if contact and contact.contact_id in ended_events
+                    else None
                 ),
             })
         stations = []
@@ -808,6 +922,11 @@ class AgccApplicationService:
             "predicted_shortfall_mb": simulation.predicted_shortfall_mb,
             "required_mb": runtime.definition.mission.required_volume_mb,
             "deadline_at": runtime.definition.mission.deadline_at,
+            "mission_start_at": runtime.definition.mission.release_at,
+            "mission_end_at": (
+                sim_time if simulation.is_finished else plan.planned_completion_at
+            ),
+            "cost_used": str(cost_used),
             "resolution_required": (
                 simulation.predicted_shortfall_mb > 1e-9
                 or (
@@ -816,6 +935,17 @@ class AgccApplicationService:
                     < runtime.definition.mission.required_volume_mb - 1e-9
                 )
             ),
+            "preflight": {
+                "capacity_policy": runtime.simulation_capacity_policy,
+                "weather_frozen": runtime.simulation_capacity_policy == "frozen",
+                "ledger_allocated_mb": ledger_allocated_mb,
+                "ledger_capacity_mb": ledger_capacity_mb,
+                "feasible": (
+                    abs(ledger_allocated_mb - runtime.definition.mission.required_volume_mb)
+                    <= 1e-6
+                    and ledger_capacity_mb + 1e-6 >= ledger_allocated_mb
+                ),
+            },
             "plan": {
                 "plan_id": plan.plan_id,
                 "version": plan.version,

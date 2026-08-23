@@ -63,6 +63,7 @@ class SimulationStartRequest(BaseModel):
     plan_id: str | None = None
     sim_start_at: datetime | None = None
     speed: ClockSpeed = ClockSpeed.X1
+    capacity_policy: Literal["frozen", "live"] = "frozen"
 
     @field_validator("sim_start_at", mode="before")
     @classmethod
@@ -72,6 +73,18 @@ class SimulationStartRequest(BaseModel):
 
 class SimulationStepRequest(BaseModel):
     seconds: int = Field(default=1, ge=1, le=86400)
+
+
+class SimulationForkRequest(BaseModel):
+    """Snapshot values used to create an isolated future simulation branch."""
+
+    sim_time: datetime
+    delivered_mb: float = Field(default=0.0, ge=0.0)
+
+    @field_validator("sim_time", mode="before")
+    @classmethod
+    def validate_sim_time(cls, value: Any) -> Any:
+        return _require_utc(value)
 
 
 class AnomalyRequest(BaseModel):

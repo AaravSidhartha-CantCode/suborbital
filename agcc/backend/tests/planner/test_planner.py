@@ -23,6 +23,8 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+import pytest
+
 from agcc.domain.enums import Band, CostModel
 from agcc.domain.mission import PlanningPreference
 from agcc.domain.planning import CandidatePass, CapacityEstimate
@@ -237,6 +239,41 @@ class TestNeverExceedsTarget:
         plan = _run(records, st, required_mb=100.0)
         assert plan.status == PlanStatus.FEASIBLE
         assert abs(plan.planned_volume_mb - 100.0) < 1e-9
+
+
+def test_preference_is_not_treated_as_a_hard_single_search(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    station = _station()
+    record = _eligible_record("pass_fallback01", 1.0, 200.0, station)
+    planner = _planner()
+    original = planner._dispatch
+    calls = 0
+
+    def first_strategy_fails(**kwargs: object) -> tuple[list[object], bool]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return [], False
+        return original(**kwargs)  # type: ignore[arg-type,return-value]
+
+    monkeypatch.setattr(planner, "_dispatch", first_strategy_fails)
+    plan = planner.plan(
+        plan_id=_plan_id(),
+        scenario_id="scenario_s01",
+        mission_id="mission_m01",
+        required_volume_mb=100.0,
+        deadline=_DEADLINE,
+        mission_window_start=_RELEASE,
+        maximum_budget=_BUDGET,
+        preference=PlanningPreference.FASTEST,
+        eligible_records=[record],
+        station_map=_station_map(station),
+        created_at=_NOW,
+    )
+    assert calls >= 2
+    assert plan.status == PlanStatus.FEASIBLE
+    assert plan.validation_violations == []
 
 
 # ===========================================================================

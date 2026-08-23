@@ -72,6 +72,12 @@ def test_complete_v1_fixture_flow_and_ordered_sse() -> None:
         headers=headers,
     )
     assert started.status_code == 200
+    preflight = started.json()["preflight"]
+    assert preflight["capacity_policy"] == "frozen"
+    assert preflight["weather_frozen"] is True
+    assert preflight["feasible"] is True
+    assert preflight["ledger_allocated_mb"] == started.json()["required_mb"]
+    assert started.json()["predicted_shortfall_mb"] == 0.0
     stream = client.get("/api/v1/events/stream", headers=headers)
     assert stream.status_code == 200
     assert stream.headers["content-type"].startswith("text/event-stream")
@@ -106,3 +112,57 @@ def test_simulation_can_start_paused_without_advancing() -> None:
     assert first["paused"] is True
     assert second["paused"] is True
     assert second["sim_time"] == first["sim_time"]
+
+
+def test_simulation_fork_restores_an_isolated_prediction_snapshot() -> None:
+    client = TestClient(create_app())
+    session_id = client.post("/api/v1/sessions").json()["session_id"]
+    headers = {"X-AGCC-Session": session_id}
+    assert client.post(
+        "/api/v1/scenario", json=scenario_payload(), headers=headers
+    ).status_code == 200
+    assert client.post("/api/v1/passes/compute", headers=headers).status_code == 200
+    plan = client.post(
+        "/api/v1/plan", json={"plan_id": "plan_forksnapshot01"}, headers=headers
+    ).json()
+    started = client.post(
+        "/api/v1/simulation/start",
+        json={"plan_id": plan["plan_id"], "speed": "paused"},
+        headers=headers,
+    ).json()
+
+    forked = client.post(
+        "/api/v1/simulation/fork",
+        json={"sim_time": started["sim_time"], "delivered_mb": 0.5},
+        headers=headers,
+    )
+
+    assert forked.status_code == 200, forked.text
+    assert forked.json()["paused"] is True
+    assert forked.json()["sim_time"] == started["sim_time"]
+    assert forked.json()["delivered_mb"] == 0.5
+
+
+def test_live_policy_is_explicitly_dynamic_not_frozen() -> None:
+    client = TestClient(create_app())
+    session_id = client.post("/api/v1/sessions").json()["session_id"]
+    headers = {"X-AGCC-Session": session_id}
+    assert client.post(
+        "/api/v1/scenario", json=scenario_payload(), headers=headers
+    ).status_code == 200
+    assert client.post("/api/v1/passes/compute", headers=headers).status_code == 200
+    plan = client.post(
+        "/api/v1/plan", json={"plan_id": "plan_livepolicy001"}, headers=headers
+    ).json()
+    started = client.post(
+        "/api/v1/simulation/start",
+        json={
+            "plan_id": plan["plan_id"],
+            "speed": "paused",
+            "capacity_policy": "live",
+        },
+        headers=headers,
+    )
+    assert started.status_code == 200, started.text
+    assert started.json()["preflight"]["capacity_policy"] == "live"
+    assert started.json()["preflight"]["weather_frozen"] is False

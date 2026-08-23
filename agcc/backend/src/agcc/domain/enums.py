@@ -57,6 +57,7 @@ class EventType(str, Enum):
     MISSION_COMPLETED = "mission_completed"
     MISSION_DEADLINE_MISSED = "mission_deadline_missed"
     ANOMALY_DETECTED = "anomaly_detected"
+    DATA_REROUTED = "data_rerouted"
     PLAN_REVISED = "plan_revised"
 
 

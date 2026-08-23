@@ -58,6 +58,10 @@ export class AgccClient {
   private async error(response: Response): Promise<ApiError> {
     const payload = await response.json().catch(() => ({})) as { error?: ApiError; detail?: ApiError }
     const error = payload.error ?? payload.detail ?? { code: 'HTTP_ERROR', message: response.statusText, entity_refs: {}, details: {} }
+    const violations = Array.isArray(error.details?.violations)
+      ? error.details.violations.map(String)
+      : []
+    if (violations.length) return { ...error, message: `${error.message}: ${violations.join(' · ')}` }
     const validation = Array.isArray(error.details?.errors) ? error.details.errors[0] as { loc?: unknown[]; msg?: string } : null
     if (!validation?.msg) return error
     const location = validation.loc?.join('.')

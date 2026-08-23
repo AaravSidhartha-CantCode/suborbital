@@ -46,6 +46,8 @@ test('applies once and creates the prediction timeline', async () => {
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/scenario', expect.objectContaining({ method: 'POST' })))
   expect(await screen.findByText('Downlink completion')).toBeTruthy()
   expect(screen.getByText('INTERNAL SIMULATION TIME')).toBeTruthy()
+  expect(screen.getByText('FEASIBLE · 3000.00 MB fully scheduled')).toBeTruthy()
+  expect(screen.getByText(/Frozen forecast ledger/)).toBeTruthy()
 })
 
 test('orbit ring conversion round trips', () => {
