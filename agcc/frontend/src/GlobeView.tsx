@@ -20,7 +20,7 @@ const point = (latitudeDeg: number, longitudeDeg: number, radius: number) => {
   return new THREE.Vector3(Math.cos(latitude) * Math.cos(longitude), Math.sin(latitude), -Math.cos(latitude) * Math.sin(longitude)).multiplyScalar(radius)
 }
 
-const markerColor: Record<string, string> = { anomaly: '#ff4d62', active: '#00f0ff', approved: '#31d17c', candidate: '#a66cff', unused: '#4ea8de', unselected: '#2f3e46' }
+const markerColor: Record<string, string> = { anomaly: '#f87171', active: '#22d3ee', approved: '#60a5fa', candidate: '#a78bfa', unused: '#475569', unselected: '#2d3748' }
 
 function countryLines(): THREE.Vector3[][] {
   const object = (countries as { objects: { countries: unknown } }).objects.countries
@@ -59,12 +59,6 @@ function SatelliteAsset({ position, band }: { position: THREE.Vector3, band?: st
         <sphereGeometry args={[0.05, 16, 16, 0, Math.PI]} />
         <meshPhysicalMaterial color="#ffffff" metalness={0.5} roughness={0.5} />
       </mesh>
-      {/* HTML Overlay for Specs */}
-      <Html position={[0.2, 0.2, 0]} center>
-        <div style={{ background: 'rgba(5, 10, 15, 0.8)', padding: '6px 12px', borderRadius: '12px', border: '1px solid rgba(0, 240, 255, 0.2)', backdropFilter: 'blur(8px)', color: '#00f0ff', font: '500 11px "JetBrains Mono", monospace', whiteSpace: 'nowrap', pointerEvents: 'none', textTransform: 'uppercase', boxShadow: '0 0 15px rgba(0, 240, 255, 0.1)' }}>
-          {band ? `BAND: ${band}` : 'NOMINAL'}
-        </div>
-      </Html>
     </group>
   )
 }
@@ -185,32 +179,37 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
   
   return (
     <group rotation={[.08, -.45, -.12]}>
-      {/* Main Earth Sphere - Realistic Dark Ocean */}
+      {/* Main Earth Sphere - Deep Space Look */}
       <mesh>
-        <sphereGeometry args={[2, 64, 64]}/>
-        <meshPhysicalMaterial color="#020813" emissive="#000000" roughness={0.7} metalness={0.1} clearcoat={0.1} />
+        <sphereGeometry args={[2, 72, 72]}/>
+        <meshPhysicalMaterial color="#041224" emissive="#020813" roughness={0.6} metalness={0.1} />
       </mesh>
-      {/* Atmospheric Halo */}
+      {/* Outer atmospheric glow (Blue Halo) */}
       <mesh>
-        <sphereGeometry args={[2.02, 64, 64]}/>
-        <meshPhysicalMaterial color="#4ea8de" transparent opacity={0.1} transmission={0.5} roughness={0} />
+        <sphereGeometry args={[2.09, 64, 64]}/>
+        <meshPhysicalMaterial color="#3b82f6" transparent opacity={0.15} roughness={0} side={THREE.BackSide} />
       </mesh>
-      {/* Thin Grid Wireframe */}
+      {/* Thin inner atmosphere */}
       <mesh>
-        <sphereGeometry args={[2.001, 32, 32]}/>
-        <meshBasicMaterial color="#4ea8de" wireframe transparent opacity={0.05} />
+        <sphereGeometry args={[2.025, 64, 64]}/>
+        <meshPhysicalMaterial color="#60a5fa" transparent opacity={0.1} roughness={0} />
+      </mesh>
+      {/* Latitude/longitude grid - subtle but present */}
+      <mesh>
+        <sphereGeometry args={[2.002, 32, 32]}/>
+        <meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.06} />
       </mesh>
       
-      {/* Country Outlines */}
-      {outlines.map((line, index) => <Line key={index} points={line} color="#153b5c" lineWidth={0.6} transparent opacity={0.7}/>)}
+      {/* Country Outlines - Political Map */}
+      {outlines.map((line, index) => <Line key={index} points={line} color="#60a5fa" lineWidth={1.2} transparent opacity={0.8}/>)}
       
       {/* Very thin elegant orbit line */}
       {track.length > 1 && (
-        <Line points={track} color="#00f0ff" lineWidth={0.8} transparent opacity={0.8} />
+        <Line points={track} color="#60a5fa" lineWidth={0.7} transparent opacity={0.7} />
       )}
       
       {/* Active Link */}
-      {activeLink && <Line points={activeLink} color="#00f0ff" lineWidth={1.5} dashed dashSize={.06} gapSize={.04} transparent opacity={.9}/>}
+      {activeLink && <Line points={activeLink} color="#22d3ee" lineWidth={1.8} dashed dashSize={.06} gapSize={.04} transparent opacity={.85}/>}
       
       {/* Station Markers */}
       {stations.map((station) => { 
@@ -236,11 +235,12 @@ export function GlobeView({ groundTrack = [], stations = [], satellite, activeSt
   return (
     <div className="globe-canvas" aria-label="Interactive Earth, country outlines, stations, and modeled orbit visualization">
       <Canvas camera={{ position: [0, 0, 7.2], fov: 44 }}>
-        <color attach="background" args={['#000000']}/>
-        <ambientLight intensity={1.5}/>
-        <directionalLight position={[5, 3, 5]} intensity={2.5} color="#90e0ef"/>
-        <directionalLight position={[-5, -3, -5]} intensity={1.0} color="#00f0ff"/>
-        <Stars radius={80} depth={40} count={2000} factor={2} fade speed={.05}/>
+        <color attach="background" args={['#060b12']}/>
+        <ambientLight intensity={1.2}/>
+        <directionalLight position={[6, 3, 6]} intensity={2.2} color="#c7e8ff"/>
+        <directionalLight position={[-4, -2, -4]} intensity={0.6} color="#1e40af"/>
+        <pointLight position={[10, 0, 0]} intensity={0.8} color="#60a5fa"/>
+        <Stars radius={100} depth={50} count={3500} factor={3} fade speed={.03}/>
         <Earth groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} weather={weather} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} />
         <OrbitControls enablePan={false} enableRotate={!dragging} enableZoom={!dragging} minDistance={5.4} maxDistance={10}/>
       </Canvas>

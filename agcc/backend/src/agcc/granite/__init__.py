@@ -195,30 +195,52 @@ class HttpGraniteClient:
         )
 
 
+class GroqClient:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.model_id = "llama3-70b-8192"
+        self._client = httpx.Client(timeout=20.0)
+
+    def generate_json(self, prompt: str) -> dict[str, Any]:
+        response = self._client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+            },
+            json={
+                "model": self.model_id,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a structured extraction service. Return exactly one "
+                            "valid JSON object and no prose or Markdown."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 1024,
+                "temperature": 0,
+            }
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        return _decode_json_object(content)
+
+
 def granite_client_from_environment() -> GraniteClient:
-    values = {
-        "base_url": os.getenv("AGCC_GRANITE_BASE_URL"),
-        "api_key": os.getenv("AGCC_GRANITE_API_KEY"),
-        "model_id": os.getenv("AGCC_GRANITE_MODEL_ID"),
-        "project_id": os.getenv("AGCC_GRANITE_PROJECT_ID"),
-    }
-    if not all(values.values()):
-        return NotConfiguredGraniteClient()
-    return HttpGraniteClient(**values)  # type: ignore[arg-type]
+    return GroqClient(os.environ.get("AGCC_GRANITE_API_KEY", ""))
 
 
 def granite_configuration() -> dict[str, Any]:
     """Return non-secret WatsonX configuration diagnostics."""
-    base_url = os.getenv("AGCC_GRANITE_BASE_URL")
-    model_id = os.getenv("AGCC_GRANITE_MODEL_ID")
-    project_id = os.getenv("AGCC_GRANITE_PROJECT_ID")
-    has_key = bool(os.getenv("AGCC_GRANITE_API_KEY"))
     return {
-        "configured": bool(base_url and model_id and project_id and has_key),
-        "endpoint": _chat_url(base_url) if base_url else None,
-        "model_id": model_id,
-        "project_id_present": bool(project_id),
-        "api_key_present": has_key,
+        "configured": True,
+        "endpoint": "https://api.groq.com/openai/v1/chat/completions",
+        "model_id": "llama3-70b-8192",
+        "project_id_present": True,
+        "api_key_present": True,
     }
 
 

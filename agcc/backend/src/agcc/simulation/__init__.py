@@ -774,11 +774,7 @@ class SimulationEngine:
                 if c.start_at <= sim_now:
                     # Active contact: count only the undelivered portion
                     # Use planned capacity minus what we've already delivered in this contact
-                    fraction_remaining = max(
-                        0.0,
-                        1.0 - (sim_now - c.start_at).total_seconds() / c.duration_s,
-                    )
-                    total += approved_capacity * fraction_remaining
+                    total += max(0.0, approved_capacity - self._active_contact_delivered_mb)
                 else:
                     # Future contact
                     total += approved_capacity
