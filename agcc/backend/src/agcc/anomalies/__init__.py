@@ -34,6 +34,10 @@ class ParsedAnomalyIntent(BaseModel):
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     qualitative_severity: str | None = None
+    suggested_multiplier: float | None = Field(default=None, ge=0.0, le=1.0)
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    cause: str | None = None
+    assumptions: list[str] = Field(default_factory=list)
     explicit_reduction_pct: float | None = Field(default=None, gt=0.0, le=100.0)
     explicit_delay_s: int | None = Field(default=None, gt=0)
     missing_fields: list[str] = Field(default_factory=list)
@@ -90,6 +94,11 @@ class ActiveAnomaly(BaseModel):
     contact_id: str | None
     rate_multiplier: float
     delay_s: int | None
+    starts_at: datetime
+    ends_at: datetime | None
+    confidence: float | None
+    cause: str | None
+    assumptions: list[str]
     confirmed_at: datetime
 
 
@@ -113,12 +122,26 @@ class AnomalyPolicyTable:
     def resolve(self, intent: ParsedAnomalyIntent) -> tuple[float | None, int | None]:
         if intent.anomaly_type is None:
             return None, None
-        policy = self.policies[intent.anomaly_type.value]
+        policy_key = (
+            AnomalyType.STATION_OUTAGE.value
+            if intent.anomaly_type == AnomalyType.STATION_UNAVAILABLE
+            else intent.anomaly_type.value
+        )
+        policy = self.policies[policy_key]
         if not bool(policy["enabled"]):
             return None, None
-        if intent.anomaly_type == AnomalyType.STATION_OUTAGE:
+        if intent.anomaly_type in {
+            AnomalyType.STATION_OUTAGE,
+            AnomalyType.STATION_UNAVAILABLE,
+        }:
             return 0.0, None
         if intent.anomaly_type == AnomalyType.RATE_DEGRADATION:
+            if intent.suggested_multiplier is not None:
+                # A degradation is partial by definition. Zero is reserved for an
+                # explicit outage, while 1.0 would have no operational effect.
+                if not 0.05 <= intent.suggested_multiplier <= 0.95:
+                    return None, None
+                return intent.suggested_multiplier, None
             reduction = intent.explicit_reduction_pct
             if reduction is None and intent.qualitative_severity:
                 severity = policy.get("severity_reduction_pct", {})
@@ -175,6 +198,8 @@ class AnomalyService:
         context: AnomalyContext,
         created_at: datetime,
     ) -> AnomalyProposalRecord:
+        if intent.starts_at is None:
+            intent = intent.model_copy(update={"starts_at": context.simulation_time})
         questions = _clarification_questions(intent, context, self.policies)
         multiplier, delay_s = self.policies.resolve(intent)
         status = ProposalStatus.NEEDS_CLARIFICATION if questions else ProposalStatus.PENDING
@@ -211,6 +236,11 @@ class AnomalyService:
             contact_id=proposal.intent.contact_id,
             rate_multiplier=proposal.rate_multiplier,
             delay_s=proposal.delay_s,
+            starts_at=proposal.intent.starts_at or confirmed_at,
+            ends_at=proposal.intent.ends_at,
+            confidence=proposal.intent.confidence,
+            cause=proposal.intent.cause,
+            assumptions=proposal.intent.assumptions,
             confirmed_at=confirmed_at,
         )
         self.proposals[proposal_id] = proposal.model_copy(
@@ -229,23 +259,53 @@ def _clarification_questions(
     if intent.anomaly_type is None:
         questions.append("Which supported anomaly type should be simulated?")
         return questions
-    policy = policies.policies[intent.anomaly_type.value]
+    policy_key = (
+        AnomalyType.STATION_OUTAGE.value
+        if intent.anomaly_type == AnomalyType.STATION_UNAVAILABLE
+        else intent.anomaly_type.value
+    )
+    policy = policies.policies[policy_key]
     if not bool(policy["enabled"]):
         questions.append(
             f"The {intent.anomaly_type.value} policy is disabled pending approved data."
         )
-    if intent.anomaly_type == AnomalyType.STATION_OUTAGE and not intent.station_id:
+    if intent.anomaly_type in {
+        AnomalyType.STATION_OUTAGE,
+        AnomalyType.STATION_UNAVAILABLE,
+    } and not intent.station_id:
         questions.append("Which station is unavailable?")
     if intent.station_id and intent.station_id not in context.station_ids:
         questions.append("Select a station from the current scenario.")
     if (
         intent.anomaly_type == AnomalyType.RATE_DEGRADATION
+        and intent.suggested_multiplier is not None
+        and not 0.05 <= intent.suggested_multiplier <= 0.95
+    ):
+        questions.append(
+            "A rate degradation multiplier must be between 0.05 and 0.95; "
+            "use an explicit outage for zero throughput."
+        )
+    if (
+        intent.anomaly_type == AnomalyType.RATE_DEGRADATION
         and intent.explicit_reduction_pct is None
+        and intent.suggested_multiplier is None
         and not intent.qualitative_severity
     ):
         questions.append("How severe is the degradation (low, medium, high, or severe)?")
     if intent.anomaly_type == AnomalyType.CONTACT_DELAY and intent.explicit_delay_s is None:
         questions.append("What explicit contact delay in seconds should be applied?")
+    if (
+        intent.ends_at is not None
+        and intent.starts_at is not None
+        and intent.ends_at <= intent.starts_at
+    ):
+        questions.append("The anomaly end time must be after its start time.")
+    if intent.ends_at is not None and intent.ends_at <= context.simulation_time:
+        questions.append("The anomaly end time must be after the current branch time.")
+    if intent.confidence is not None and intent.confidence < 0.4:
+        questions.append(
+            "The operational effect is ambiguous. Is this an outage, rate degradation, or delay?"
+        )
     return questions
 
 

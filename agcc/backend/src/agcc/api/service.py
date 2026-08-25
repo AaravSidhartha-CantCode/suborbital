@@ -304,7 +304,15 @@ class AgccApplicationService:
         if not stations:
             return []
         fetched = self._fetch_weather(stations, start, end)
-        runtime.weather_snapshots = [item for values in fetched.values() for item in values]
+        # A UI request for the current hour must not erase the full forecast
+        # ledger used by planning and future live contacts. Replace only matching
+        # station/hour snapshots and retain all other mission intervals.
+        merged = {item.snapshot_id: item for item in runtime.weather_snapshots}
+        for item in (snapshot for values in fetched.values() for snapshot in values):
+            merged[item.snapshot_id] = item
+        runtime.weather_snapshots = sorted(
+            merged.values(), key=lambda item: (item.valid_from, item.station_id)
+        )
         return runtime.weather_snapshots
 
     def _fetch_weather(
@@ -405,9 +413,11 @@ class AgccApplicationService:
         activate: bool = True,
         required_volume_mb: float | None = None,
         mission_window_start: datetime | None = None,
+        allow_budget_override: bool = False,
     ) -> ContactPlan:
         runtime = self.get_runtime(scenario_id)
         records = self._eligible_records(runtime)
+        records = self._anomaly_adjusted_records(runtime, records)
         if excluded_pass_ids:
             records = [item for item in records if item.pass_.pass_id not in excluded_pass_ids]
         mission = runtime.definition.mission
@@ -418,6 +428,12 @@ class AgccApplicationService:
         )
         window_start = mission_window_start or mission.release_at
         constraints = runtime.definition.scenario.constraints
+        planning_budget = constraints.maximum_budget
+        if allow_budget_override:
+            planning_budget = sum(
+                (Decimal(item.contact_cost_decimal) for item in records),
+                Decimal("0"),
+            )
         sequence = len(runtime.plans) + 1
         plan_id = requested_plan_id or self._stable_id(
             "plan", scenario_id, str(sequence), str(required), window_start.isoformat()
@@ -430,7 +446,7 @@ class AgccApplicationService:
             required_volume_mb=required,
             deadline=mission.deadline_at,
             mission_window_start=window_start,
-            maximum_budget=constraints.maximum_budget,
+            maximum_budget=planning_budget,
             preference=constraints.planning_preference,
             eligible_records=records,
             station_map=stations,
@@ -508,7 +524,26 @@ class AgccApplicationService:
         plan = self.get_plan(scenario_id, selected_plan_id)
         if plan.status != PlanStatus.FEASIBLE:
             raise ApiServiceError(409, "PLAN_NOT_FEASIBLE", "Simulation requires a feasible plan")
-        self._validate_plan_ledger(runtime, plan)
+        effective_start = sim_start_at or runtime.definition.mission.release_at
+        if initial_delivered_mb <= 1e-9:
+            self._validate_plan_ledger(runtime, plan)
+        else:
+            executable = [item for item in plan.contacts if item.end_at > effective_start]
+            executable_volume = sum(item.allocated_volume_mb for item in executable)
+            required_remaining = max(
+                0.0,
+                runtime.definition.mission.required_volume_mb - initial_delivered_mb,
+            )
+            if executable_volume + 1e-6 < required_remaining:
+                raise ApiServiceError(
+                    409,
+                    "REPLAN_LEDGER_INSUFFICIENT",
+                    "Approved future contacts cannot deliver the remaining mission volume",
+                    details={
+                        "required_remaining_mb": required_remaining,
+                        "executable_volume_mb": executable_volume,
+                    },
+                )
         plan = plan.model_copy(
             update={
                 "contacts": [
@@ -553,9 +588,10 @@ class AgccApplicationService:
                 at,
                 precipitation_mm_per_hr=precipitation,
             )
-            return modeled_rate * self._contact_anomaly_multiplier(runtime, contact.contact_id)
+            return modeled_rate * self._contact_anomaly_multiplier(
+                runtime, contact.contact_id, at
+            )
 
-        effective_start = sim_start_at or runtime.definition.mission.release_at
         execution_plan = plan.model_copy(
             update={
                 "contacts": [item for item in plan.contacts if item.end_at > effective_start]
@@ -677,20 +713,42 @@ class AgccApplicationService:
     def inject_anomaly(self, scenario_id: str, request: AnomalyRequest) -> AnomalyImpactData:
         runtime = self.get_runtime(scenario_id)
         current_plan = self._current_plan(runtime)
+        starts_at = request.starts_at or (
+            runtime.simulation.sim_time
+            if runtime.simulation and runtime.simulation.sim_time
+            else runtime.definition.mission.release_at
+        )
         contacts = (
             [c for c in current_plan.contacts if c.contact_id in request.affected_contact_ids]
             if request.affected_contact_ids
             else list(current_plan.contacts)
         )
-        affected_capacity = sum(contact.allocated_volume_mb for contact in contacts)
+        estimated_reduction = 0.0
+        for contact in contacts:
+            duration_s = max(0.0, (contact.end_at - contact.start_at).total_seconds())
+            overlap_start = max(contact.start_at, starts_at)
+            overlap_end = min(contact.end_at, request.ends_at or contact.end_at)
+            overlap_s = max(0.0, (overlap_end - overlap_start).total_seconds())
+            if duration_s > 0.0:
+                estimated_reduction += (
+                    contact.allocated_volume_mb
+                    * overlap_s / duration_s
+                    * (1.0 - request.rate_multiplier)
+                )
         anomaly = AnomalyImpactData(
             anomaly_id=self._stable_id(
                 "anomaly", scenario_id, str(len(runtime.anomalies) + 1), request.description
             ),
             anomaly_type=request.anomaly_type,
             affected_contact_ids=[contact.contact_id for contact in contacts],
+            station_id=request.station_id,
             rate_multiplier=request.rate_multiplier,
-            estimated_capacity_reduction_mb=affected_capacity * (1.0 - request.rate_multiplier),
+            starts_at=starts_at,
+            ends_at=request.ends_at,
+            confidence=request.confidence,
+            cause=request.cause,
+            assumptions=request.assumptions,
+            estimated_capacity_reduction_mb=estimated_reduction,
             description=request.description,
         )
         runtime.anomalies.append(anomaly)
@@ -757,6 +815,7 @@ class AgccApplicationService:
             contact = contacts.get(event.contact_id or "")
             source_name = None
             destination_name = None
+            reroute_reason = None
             if event.event_type == EventType.DATA_REROUTED:
                 parts = dict(
                     item.split("=", 1)
@@ -767,6 +826,29 @@ class AgccApplicationService:
                 destination = contacts.get(parts.get("destination_contact", ""))
                 source_name = stations.get(source.station_id) if source else None
                 destination_name = stations.get(destination.station_id) if destination else None
+                source_weather = min(
+                    (
+                        item
+                        for item in runtime.weather_snapshots
+                        if source is not None and item.station_id == source.station_id
+                    ),
+                    key=lambda item: abs(
+                        (item.valid_from - event.sim_time).total_seconds()
+                    ),
+                    default=None,
+                )
+                if source_weather is not None and source_weather.precipitation_mm_per_hr > 0.05:
+                    reroute_reason = (
+                        f"Forecast rain at {source_name or 'the source station'} was "
+                        f"{source_weather.precipitation_mm_per_hr:.2f} mm/h; the live "
+                        "attenuation model reduced its executable rate."
+                    )
+                else:
+                    reroute_reason = (
+                        f"{source_name or 'The source station'} delivered less than its "
+                        "assigned volume at contact close; no material forecast rain was "
+                        "recorded, so geometry/rate execution—not rain—caused the measured loss."
+                    )
             result.append({
                 "event_id": event.event_id,
                 "sequence_number": event.sequence_number,
@@ -783,6 +865,7 @@ class AgccApplicationService:
                 "station_name": stations.get(contact.station_id) if contact else None,
                 "source_station_name": source_name,
                 "destination_station_name": destination_name,
+                "reroute_reason": reroute_reason,
             })
         return result
 
@@ -795,6 +878,11 @@ class AgccApplicationService:
         self.advance_realtime(scenario_id)
         simulation = runtime.simulation
         assert simulation is not None
+        confirmed_shortfall_mb = (
+            simulation.last_residual_shortfall.shortfall_mb
+            if simulation.last_residual_shortfall is not None
+            else 0.0
+        )
         sim_time = simulation.sim_time or runtime.definition.mission.release_at
         orbit_state = self.propagator.state_at(runtime.definition.satellite.orbit, sim_time)
         plan = self._current_plan(runtime)
@@ -811,21 +899,38 @@ class AgccApplicationService:
         active = simulation.active_contact
         approved_station_ids = {item.station_id for item in plan.contacts}
         contact_station = {item.contact_id: item.station_id for item in plan.contacts}
+        all_events = runtime.event_store.all_events()
         ended_events = {
             item.contact_id: item
-            for item in runtime.event_store.all_events()
+            for item in all_events
             if item.event_type == EventType.CONTACT_ENDED and item.contact_id
+        }
+        started_contact_ids = {
+            item.contact_id
+            for item in all_events
+            if item.event_type == EventType.CONTACT_STARTED and item.contact_id
         }
         cost_used = sum(
             Decimal(contact.contact_cost_decimal)
             for contact in plan.contacts
-            if contact.contact_id in ended_events
+            if contact.contact_id in started_contact_ids
+        )
+        committed_cost = sum(
+            Decimal(contact.contact_cost_decimal) for contact in plan.contacts
+        )
+        maximum_budget = runtime.definition.scenario.constraints.maximum_budget
+        cost_assumed = any(
+            {"booking_cost", "cost_per_minute"}
+            & set(station_by_id[contact.station_id].field_provenance.assumptions)
+            for contact in plan.contacts
         )
         anomalous_station_ids = {
             contact_station[contact_id]
             for anomaly in runtime.anomalies
             for contact_id in anomaly.affected_contact_ids
             if contact_id in contact_station
+            and anomaly.starts_at <= sim_time
+            and (anomaly.ends_at is None or sim_time < anomaly.ends_at)
         }
         candidate_station_ids = {item.station_id for item in runtime.passes}
         selected_station_ids = set(runtime.definition.scenario.station_ids)
@@ -833,6 +938,17 @@ class AgccApplicationService:
         for candidate in runtime.passes:
             contact = contacts_by_pass.get(candidate.pass_id)
             capacity = capacity_by_pass.get(candidate.pass_id)
+            weather = min(
+                (
+                    item
+                    for item in runtime.weather_snapshots
+                    if item.station_id == candidate.station_id
+                ),
+                key=lambda item: abs(
+                    (item.valid_from - candidate.start_at).total_seconds()
+                ),
+                default=None,
+            )
             opportunities.append({
                 "pass_id": candidate.pass_id,
                 "contact_id": contact.contact_id if contact else None,
@@ -850,6 +966,15 @@ class AgccApplicationService:
                     "Geometrically visible and capacity-eligible, but not selected by the planner."
                 ),
                 "planned_cost": contact.contact_cost_decimal if contact else None,
+                "usable_capacity_mb": capacity.usable_capacity_mb if capacity else 0.0,
+                "average_effective_rate_mbps": (
+                    capacity.average_effective_rate_mbps if capacity else 0.0
+                ),
+                "weather_precipitation_mm_per_hr": (
+                    weather.precipitation_mm_per_hr if weather else None
+                ),
+                "weather_valid_from": weather.valid_from if weather else None,
+                "weather_quality": capacity.weather_data_quality if capacity else None,
                 "actual_volume_mb": (
                     ended_events[contact.contact_id].delivered_volume_mb
                     if contact and contact.contact_id in ended_events
@@ -911,7 +1036,7 @@ class AgccApplicationService:
                 "actual_volume_mb": simulation.active_contact_delivered_mb,
                 "band": runtime.definition.satellite.comms.band,
                 "anomaly_multiplier": self._contact_anomaly_multiplier(
-                    runtime, active.contact_id
+                    runtime, active.contact_id, sim_time
                 ),
             },
             "predicted_final_mb": max(
@@ -920,6 +1045,18 @@ class AgccApplicationService:
                 - simulation.predicted_shortfall_mb,
             ),
             "predicted_shortfall_mb": simulation.predicted_shortfall_mb,
+            "confirmed_shortfall_mb": confirmed_shortfall_mb,
+            "shortfall_status": (
+                "confirmed_action_required"
+                if confirmed_shortfall_mb > 1e-9 or (
+                    simulation.is_finished
+                    and simulation.delivered_mb
+                    < runtime.definition.mission.required_volume_mb - 1e-9
+                )
+                else "provisional_monitoring"
+                if simulation.predicted_shortfall_mb > 1e-9
+                else "clear"
+            ),
             "required_mb": runtime.definition.mission.required_volume_mb,
             "deadline_at": runtime.definition.mission.deadline_at,
             "mission_start_at": runtime.definition.mission.release_at,
@@ -927,8 +1064,12 @@ class AgccApplicationService:
                 sim_time if simulation.is_finished else plan.planned_completion_at
             ),
             "cost_used": str(cost_used),
+            "committed_cost": str(committed_cost),
+            "remaining_budget": str(max(Decimal("0"), maximum_budget - cost_used)),
+            "maximum_budget": str(maximum_budget),
+            "cost_assumed": cost_assumed,
             "resolution_required": (
-                simulation.predicted_shortfall_mb > 1e-9
+                confirmed_shortfall_mb > 1e-9
                 or (
                     simulation.is_finished
                     and simulation.delivered_mb
@@ -999,19 +1140,86 @@ class AgccApplicationService:
         return f"{prefix}_{digest}"
 
     @staticmethod
-    def _active_anomaly_multiplier(runtime: ScenarioRuntime) -> float:
+    def _contact_anomaly_multiplier(
+        runtime: ScenarioRuntime, contact_id: str, at: datetime | None = None
+    ) -> float:
         multiplier = 1.0
         for anomaly in runtime.anomalies:
-            multiplier *= anomaly.rate_multiplier
+            in_scope = (
+                not anomaly.affected_contact_ids
+                or contact_id in anomaly.affected_contact_ids
+            )
+            in_time = at is None or (
+                anomaly.starts_at <= at
+                and (anomaly.ends_at is None or at < anomaly.ends_at)
+            )
+            if in_scope and in_time:
+                multiplier *= anomaly.rate_multiplier
         return multiplier
 
     @staticmethod
-    def _contact_anomaly_multiplier(runtime: ScenarioRuntime, contact_id: str) -> float:
-        multiplier = 1.0
-        for anomaly in runtime.anomalies:
-            if not anomaly.affected_contact_ids or contact_id in anomaly.affected_contact_ids:
-                multiplier *= anomaly.rate_multiplier
-        return multiplier
+    def _anomaly_adjusted_records(
+        runtime: ScenarioRuntime, records: list[Any]
+    ) -> list[Any]:
+        """Apply confirmed anomaly intervals to candidate-pass capacity.
+
+        Causes remain descriptive. Planning depends only on station/contact scope,
+        interval overlap, and the validated remaining-throughput multiplier.
+        """
+        if not runtime.anomalies:
+            return records
+        known_contacts = {
+            contact.contact_id: contact
+            for plan in runtime.plans.values()
+            for contact in plan.contacts
+        }
+        adjusted = []
+        for record in records:
+            candidate = record.pass_
+            duration_s = max(0.0, (candidate.end_at - candidate.start_at).total_seconds())
+            factor = 1.0
+            labels: list[str] = []
+            for anomaly in runtime.anomalies:
+                scoped_pass_ids = {
+                    known_contacts[contact_id].pass_id
+                    for contact_id in anomaly.affected_contact_ids
+                    if contact_id in known_contacts
+                }
+                if anomaly.station_id:
+                    in_scope = candidate.station_id == anomaly.station_id
+                elif scoped_pass_ids:
+                    in_scope = candidate.pass_id in scoped_pass_ids
+                else:
+                    in_scope = True
+                if not in_scope or duration_s <= 0.0:
+                    continue
+                overlap_start = max(candidate.start_at, anomaly.starts_at)
+                overlap_end = min(
+                    candidate.end_at,
+                    anomaly.ends_at or candidate.end_at,
+                )
+                overlap_s = max(0.0, (overlap_end - overlap_start).total_seconds())
+                if overlap_s <= 0.0:
+                    continue
+                overlap_fraction = overlap_s / duration_s
+                factor *= 1.0 - (1.0 - anomaly.rate_multiplier) * overlap_fraction
+                labels.append(
+                    f"anomaly:{anomaly.anomaly_id}:overlap={overlap_s:.0f}s:"
+                    f"multiplier={anomaly.rate_multiplier:.3f}"
+                )
+            if not labels:
+                adjusted.append(record)
+                continue
+            capacity = record.capacity.model_copy(update={
+                "usable_capacity_mb": record.capacity.usable_capacity_mb * factor,
+                "average_effective_rate_mbps": (
+                    record.capacity.average_effective_rate_mbps * factor
+                ),
+                "peak_effective_rate_mbps": record.capacity.peak_effective_rate_mbps * factor,
+                "assumptions": [*record.capacity.assumptions, *labels],
+            })
+            adjusted.append(record.model_copy(update={"capacity": capacity}))
+        return adjusted
 
     def _publish(self, runtime: ScenarioRuntime) -> None:
         simulation = runtime.simulation

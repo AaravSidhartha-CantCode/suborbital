@@ -699,6 +699,20 @@ class TestDeterministicSorting:
         assert catalog.schema_version == "1.0.0"
         assert catalog.catalog_version == "2026.08.1"
 
+    def test_missing_assumed_prices_receive_nonzero_simulated_pricing(self) -> None:
+        hybrid_path = (
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "data"
+            / "catalogs"
+            / "stations.hybrid.json"
+        )
+        catalog = load_catalog_from_file(hybrid_path)
+        kourou = next(item for item in catalog.stations if item.name == "ESA Kourou")
+        assert kourou.booking_cost > 0.0
+        assert kourou.cost_per_minute > 0.0
+        assert "booking_cost" in kourou.field_provenance.assumptions
+        assert "cost_per_minute" in kourou.field_provenance.assumptions
+
     def test_template_catalog_loads_and_has_incomplete_station(self) -> None:
         """Template catalog loads, has 1 station, and it is not planner eligible."""
         template_path = (

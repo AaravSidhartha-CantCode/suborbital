@@ -166,3 +166,64 @@ def test_live_policy_is_explicitly_dynamic_not_frozen() -> None:
     assert started.status_code == 200, started.text
     assert started.json()["preflight"]["capacity_policy"] == "live"
     assert started.json()["preflight"]["weather_frozen"] is False
+
+
+def test_anomaly_replan_approve_activates_route_and_reject_remains_available() -> None:
+    client = TestClient(create_app())
+    session_id = client.post("/api/v1/sessions").json()["session_id"]
+    headers = {"X-AGCC-Session": session_id}
+    assert client.post(
+        "/api/v1/scenario", json=scenario_payload(), headers=headers
+    ).status_code == 200
+    assert client.post("/api/v1/passes/compute", headers=headers).status_code == 200
+    original = client.post(
+        "/api/v1/plan", json={"plan_id": "plan_approvalroute01"}, headers=headers
+    ).json()
+    assert client.post(
+        "/api/v1/simulation/start",
+        json={"plan_id": original["plan_id"], "speed": "paused"},
+        headers=headers,
+    ).status_code == 200
+    station_id = original["contacts"][0]["station_id"]
+    parsed = client.post(
+        "/api/v1/anomalies/parse",
+        json={
+            "anomaly_type": "station_unavailable",
+            "station_id": station_id,
+            "source_text": "Explicit test outage",
+        },
+        headers=headers,
+    )
+    assert parsed.status_code == 200, parsed.text
+    confirmed = client.post(
+        "/api/v1/anomalies/confirm",
+        params={"proposal_id": parsed.json()["proposal_id"]},
+        headers=headers,
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    proposal = client.post(
+        "/api/v1/replans", json={"reason": "test outage recovery"}, headers=headers
+    )
+    assert proposal.status_code == 200, proposal.text
+    proposal_body = proposal.json()
+    assert proposal_body["proposed_plan"] is not None
+    approved = client.post(
+        f"/api/v1/replans/{proposal_body['proposal_id']}/approve",
+        json={"reason": "explicit test approval"},
+        headers=headers,
+    )
+    assert approved.status_code == 200, approved.text
+    active = client.get("/api/v1/simulation/state", headers=headers).json()
+    assert active["plan"]["version"] == original["version"] + 1
+    assert float(active["committed_cost"]) <= float(active["maximum_budget"])
+
+    another = client.post(
+        "/api/v1/replans", json={"reason": "test rejection path"}, headers=headers
+    )
+    assert another.status_code == 200, another.text
+    rejected = client.post(
+        f"/api/v1/replans/{another.json()['proposal_id']}/reject",
+        json={"reason": "operator chose custom constraints"},
+        headers=headers,
+    )
+    assert rejected.status_code == 200, rejected.text

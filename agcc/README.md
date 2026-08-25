@@ -17,19 +17,16 @@ uvicorn agcc.api.app:app --reload --port 8000
 ```
 
 The primary interface is `/api/v1`. Browser-tab sessions are held in memory and
-sent through `X-AGCC-Session`. Granite is optional. For the approved Frankfurt
-configuration, set these in the PowerShell window that starts the backend:
+sent through `X-AGCC-Session`. The optional explanation/anomaly provider in this
+experimental copy is Groq. Configure it in the backend PowerShell window:
 
 ```powershell
-$env:AGCC_GRANITE_BASE_URL="https://eu-de.ml.cloud.ibm.com/ml/v1/text/generation?version=2023-05-29"
-$env:AGCC_GRANITE_API_KEY="your-raw-ibm-cloud-api-key"
-$env:AGCC_GRANITE_MODEL_ID="ibm/granite-4-h-small"
-$env:AGCC_GRANITE_PROJECT_ID="your-watsonx-project-id"
+$env:GROQ_API_KEY="your-groq-api-key"
+$env:GROQ_MODEL_ID="llama-3.3-70b-versatile"
 ```
 
-The backend exchanges the raw API key with IBM IAM, caches the access token,
-refreshes it before expiry, and retries once after a 401. Never paste keys into
-source files or commit them.
+Never paste keys into source files or commit them. Deterministic explanation
+fallbacks remain available when Groq is not configured or unavailable.
 
 Live ground weather uses Open-Meteo when its endpoint is set before the backend
 starts. No API key is required for the free prototype endpoint:
@@ -61,7 +58,7 @@ continues to use the controlled fictional fixture. Enable it before starting
 the backend:
 
 ```powershell
-$env:AGCC_STATION_CATALOG_PATH="C:\Users\amita\Documents\ChatGPT\Space_bob\repo_audit\agcc\data\catalogs\stations.hybrid.json"
+$env:AGCC_STATION_CATALOG_PATH="C:\Users\amita\Documents\ChatGPT\spacebobtry2\spacebobv3\agcc\data\catalogs\stations.hybrid.json"
 ```
 
 The hybrid catalogue retains supplied organization/place labels, but every

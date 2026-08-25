@@ -309,6 +309,7 @@ def _greedy_select(
     maximum_budget: Decimal,
     mission_window_start: datetime,
     score_key: object,
+    static_order: bool = False,
 ) -> tuple[list[_Slice], bool]:
     """Generic greedy selection loop used by all three strategies.
 
@@ -325,6 +326,33 @@ def _greedy_select(
 
     remaining = required_volume_mb
     deadline_ts = deadline.timestamp()
+
+    if static_order:
+        ranked_once = sorted(
+            remaining_candidates,
+            key=lambda candidate: key_fn(candidate, running_cost, selected),
+        )
+        for s in ranked_once:
+            if remaining <= 0.0:
+                break
+            if s.start_at < mission_window_start or s.end_at.timestamp() > deadline_ts:
+                continue
+            same_pass = [x for x in selected if x.pass_id == s.pass_id]
+            if same_pass:
+                indexes = {x.slice_index for x in same_pass}
+                if s.slice_index - 1 not in indexes and s.slice_index + 1 not in indexes:
+                    continue
+            elif s.duration_s < _SLICE_S:
+                continue
+            if _time_overlaps(s, selected):
+                continue
+            inc = _incremental_cost(s, selected, running_cost)
+            if running_cost + inc > maximum_budget:
+                continue
+            selected.append(s)
+            running_cost += inc
+            remaining -= s.capacity_mb
+        return selected, remaining <= 0.0
 
     while remaining > 0.0 and remaining_candidates:
         # Marginal cost changes whenever a slice extends an existing contact,
@@ -581,6 +609,9 @@ class ContactPlanner:
         total_cost = _ZERO
         completion_at: datetime | None = None
         violations: list[str] = []
+        best_partial: list[_Slice] = []
+        best_partial_volume = 0.0
+        best_partial_cost = _ZERO
         for strategy in strategies:
             candidate, success = self._dispatch(
                 slices=all_slices,
@@ -591,6 +622,22 @@ class ContactPlanner:
                 preference=strategy,
             )
             if not success:
+                candidate_contacts, candidate_cost, _ = _build_contacts(
+                    candidate, required_volume_mb
+                )
+                candidate_volume = sum(
+                    item.allocated_volume_mb for item in candidate_contacts
+                )
+                if (
+                    candidate_volume > best_partial_volume + 1e-9
+                    or (
+                        abs(candidate_volume - best_partial_volume) <= 1e-9
+                        and (not best_partial or candidate_cost < best_partial_cost)
+                    )
+                ):
+                    best_partial = candidate
+                    best_partial_volume = candidate_volume
+                    best_partial_cost = candidate_cost
                 continue
             candidate_contacts, candidate_cost, candidate_completion = _build_contacts(
                 candidate, required_volume_mb
@@ -613,7 +660,21 @@ class ContactPlanner:
             break
 
         if not contacts:
-            unused_ids = [r.pass_.pass_id for r in only_eligible]
+            # An infeasible mission still needs a truthful best-case ledger.
+            # Returning zero discarded useful work selected before the greedy
+            # search hit the budget/deadline boundary and misled the UI.
+            partial_contacts, partial_cost, partial_completion = _build_contacts(
+                best_partial, required_volume_mb
+            )
+            selected_partial_ids = {item.pass_id for item in best_partial}
+            unused_ids = [
+                r.pass_.pass_id
+                for r in only_eligible
+                if r.pass_.pass_id not in selected_partial_ids
+            ]
+            partial_volume = sum(
+                item.allocated_volume_mb for item in partial_contacts
+            )
             return ContactPlan(
                 plan_id=plan_id,
                 mission_id=mission_id,
@@ -621,11 +682,11 @@ class ContactPlanner:
                 created_at=created_at,
                 preference=preference,
                 status=PlanStatus.NO_FEASIBLE_PLAN_FOUND,
-                contacts=[],
+                contacts=partial_contacts,
                 required_volume_mb=required_volume_mb,
-                planned_volume_mb=0.0,
-                estimated_total_cost="0",
-                planned_completion_at=None,
+                planned_volume_mb=partial_volume,
+                estimated_total_cost=str(partial_cost),
+                planned_completion_at=partial_completion,
                 unused_opportunity_ids=unused_ids,
                 rejected_opportunity_records=rejected,
                 algorithm_version=ALGORITHM_VERSION,
@@ -708,4 +769,5 @@ class ContactPlanner:
             maximum_budget=maximum_budget,
             mission_window_start=mission_window_start,
             score_key=score,
+            static_order=preference == PlanningPreference.FASTEST,
         )

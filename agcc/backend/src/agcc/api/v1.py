@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import secrets
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from threading import Lock
 from typing import Any
 
 import httpx
@@ -54,6 +56,7 @@ class SessionState:
     replanner: ForwardReplanner = field(default_factory=ForwardReplanner)
     scenario_id: str | None = None
     last_active_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    replan_lock: Lock = field(default_factory=Lock, repr=False)
 
 
 class SessionRepository:
@@ -111,49 +114,44 @@ class AnomalyChatRequest(BaseModel):
     text: str
 
 
-def _watsonx_failure(exc: Exception) -> dict[str, str]:
+def _llm_failure(exc: Exception) -> dict[str, str]:
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
         if status == 401:
             return {
-                "code": "WATSONX_AUTHENTICATION_FAILED",
+                "code": "LLM_AUTHENTICATION_FAILED",
                 "message": (
-                    "WatsonX rejected the IAM token. Verify AGCC_GRANITE_API_KEY contains "
-                    "a valid raw IBM Cloud API key; the backend exchanges and refreshes IAM "
-                    "tokens automatically. Restart the backend after changing it."
+                    "Groq rejected the API key. Set GROQ_API_KEY in the PowerShell window "
+                    "that starts the backend, then restart it."
                 ),
             }
         if status == 403:
             return {
-                "code": "WATSONX_PROJECT_ACCESS_DENIED",
-                "message": (
-                    "IBM IAM authenticated, but this identity cannot use the configured "
-                    "AGCC_GRANITE_PROJECT_ID/model in Frankfurt. Grant the API-key owner "
-                    "watsonx.ai project access and the required IBM Cloud IAM service role."
-                ),
+                "code": "LLM_ACCESS_DENIED",
+                "message": "Groq authenticated the request but denied model access.",
             }
         if status == 404:
             return {
-                "code": "WATSONX_ENDPOINT_OR_MODEL_NOT_FOUND",
-                "message": "Verify the Frankfurt endpoint and Granite model ID.",
+                "code": "LLM_MODEL_NOT_FOUND",
+                "message": "The configured Groq model is unavailable; verify GROQ_MODEL_ID.",
             }
         if status == 429:
             return {
-                "code": "WATSONX_RATE_LIMITED",
-                "message": "WatsonX is rate-limited; wait briefly and retry.",
+                "code": "LLM_RATE_LIMITED",
+                "message": "Groq is rate-limited; wait briefly and retry.",
             }
         return {
-            "code": "WATSONX_REQUEST_REJECTED",
-            "message": f"WatsonX rejected the request with HTTP {status}.",
+            "code": "LLM_REQUEST_REJECTED",
+            "message": f"Groq rejected the request with HTTP {status}.",
         }
     if isinstance(exc, httpx.RequestError):
         return {
-            "code": "WATSONX_NETWORK_FAILED",
-            "message": "The backend could not reach the configured WatsonX endpoint.",
+            "code": "LLM_NETWORK_FAILED",
+            "message": "The backend could not reach the configured Groq endpoint.",
         }
     return {
-        "code": "WATSONX_RESPONSE_INVALID",
-        "message": f"WatsonX response rejected: {str(exc)[:180]}",
+        "code": "LLM_RESPONSE_INVALID",
+        "message": f"Groq response rejected: {str(exc)[:180]}",
     }
 
 
@@ -267,7 +265,7 @@ def create_v1_router(container: AppContainer) -> APIRouter:
             )
             return {**configuration, "status": "ready", "reachable": True}
         except Exception as exc:
-            failure = _watsonx_failure(exc)
+            failure = _llm_failure(exc)
             return {
                 **configuration,
                 "status": failure["code"].lower(),
@@ -292,7 +290,11 @@ def create_v1_router(container: AppContainer) -> APIRouter:
         ident = scenario_id(session)
         session.service.compute_capacities(ident)
         session.service.feasibility(ident, refresh_capacity=False)
-        return session.service.create_plan(ident, body.plan_id)
+        return session.service.create_plan(
+            ident,
+            body.plan_id,
+            mission_window_start=body.mission_window_start,
+        )
 
     @router.get("/plan/current", operation_id="getCurrentPlan")
     def current_plan(session: SessionState = Depends(state)) -> Any:
@@ -468,15 +470,15 @@ def create_v1_router(container: AppContainer) -> APIRouter:
             raise HTTPException(
                 status_code=503,
                 detail={
-                    "code": "WATSONX_NOT_CONFIGURED",
+                    "code": "LLM_NOT_CONFIGURED",
                     "message": (
-                        "Configure the AGCC_GRANITE_* environment variables before "
-                        "using anomaly chat."
+                        "Set GROQ_API_KEY in the PowerShell window that starts the "
+                        "backend, then restart it before using anomaly chat."
                     ),
                 },
             ) from exc
         except (httpx.HTTPError, KeyError, ValueError) as exc:
-            failure = _watsonx_failure(exc)
+            failure = _llm_failure(exc)
             raise HTTPException(
                 status_code=502,
                 detail=failure,
@@ -513,8 +515,14 @@ def create_v1_router(container: AppContainer) -> APIRouter:
             runtime.definition.scenario.scenario_id,
             AnomalyRequest(
                 anomaly_type=active.anomaly_type,
+                station_id=active.station_id,
                 affected_contact_ids=sorted(set(affected_contacts)),
                 rate_multiplier=active.rate_multiplier,
+                starts_at=active.starts_at,
+                ends_at=active.ends_at,
+                confidence=active.confidence,
+                cause=active.cause,
+                assumptions=active.assumptions,
                 description=proposal.source_text,
             ),
         )
@@ -524,6 +532,20 @@ def create_v1_router(container: AppContainer) -> APIRouter:
     def request_replan(
         body: ReplanRequest, session: SessionState = Depends(state)
     ) -> Any:
+        if not session.replan_lock.acquire(blocking=False):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "REPLAN_ALREADY_RUNNING",
+                    "message": "A replan calculation is already running for this timeline.",
+                },
+            )
+        try:
+            return _calculate_replan(body, session)
+        finally:
+            session.replan_lock.release()
+
+    def _calculate_replan(body: ReplanRequest, session: SessionState) -> Any:
         current = runtime(session)
         if current.current_plan_id is None:
             raise HTTPException(status_code=409, detail={"code": "PLAN_REQUIRED"})
@@ -558,6 +580,7 @@ def create_v1_router(container: AppContainer) -> APIRouter:
             activate=False,
             required_volume_mb=required_remaining,
             mission_window_start=replan_at,
+            allow_budget_override=True,
         )
         candidate = None
         if future.status.value == "feasible":
@@ -604,36 +627,87 @@ def create_v1_router(container: AppContainer) -> APIRouter:
         body: ProposalDecisionRequest,
         session: SessionState = Depends(state),
     ) -> Any:
-        del body
-        decision = session.replanner.approve(proposal_id)
         current = runtime(session)
-        current.plans[decision.active_plan.plan_id] = decision.active_plan
-        
-        # 1. Expand authorized stations
-        authorized = current.definition.scenario.constraints.station_selection.authorized_station_ids
-        for contact in decision.active_plan.contacts:
-            if contact.station_id not in authorized:
-                authorized.append(contact.station_id)
-                
-        # 2. Increase maximum budget if required
-        from decimal import Decimal
-        plan_cost = sum(Decimal(contact.contact_cost_decimal) for contact in decision.active_plan.contacts)
-        if plan_cost > current.definition.scenario.constraints.maximum_budget:
-            current.definition.scenario.constraints.maximum_budget = plan_cost
-            
-        # 3. Extend mission deadline if required
-        if decision.active_plan.contacts:
-            latest_end = max(contact.end_at for contact in decision.active_plan.contacts)
-            if latest_end > current.definition.mission.deadline_at:
-                current.definition.mission.deadline_at = latest_end
+        proposal = session.replanner.proposals[proposal_id]
+        candidate = proposal.proposed_plan
+        if candidate is None:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "REPLAN_HAS_NO_EXECUTABLE_PLAN"},
+            )
 
-        session.service.generate_passes(current.definition.scenario.scenario_id)
-        session.service.compute_capacities(current.definition.scenario.scenario_id)
-
-        session.service.activate_replan(
-            current.definition.scenario.scenario_id, decision.active_plan.plan_id
+        # Build one validated immutable definition before changing proposal state.
+        # Domain aggregates are frozen by design and must never be assigned into.
+        station_ids = list(dict.fromkeys([
+            *current.definition.scenario.station_ids,
+            *(contact.station_id for contact in candidate.contacts),
+        ]))
+        old_constraints = current.definition.scenario.constraints
+        old_selection = old_constraints.station_selection
+        selection = old_selection.model_copy(update={
+            "authorized_station_ids": list(dict.fromkeys([
+                *old_selection.authorized_station_ids,
+                *(contact.station_id for contact in candidate.contacts),
+            ])),
+        })
+        plan_cost = sum(
+            Decimal(contact.contact_cost_decimal) for contact in candidate.contacts
         )
-        return decision
+        # Pressing Approve is the explicit authority to accept this candidate's
+        # calculated cost. Only the minimum required ceiling is raised.
+        constraints = old_constraints.model_copy(update={
+            "station_selection": selection,
+            "maximum_budget": max(old_constraints.maximum_budget, plan_cost),
+        })
+        scenario = current.definition.scenario.model_copy(update={
+            "station_ids": station_ids,
+            "constraints": constraints,
+        })
+        latest_end = max(
+            (contact.end_at for contact in candidate.contacts),
+            default=current.definition.mission.deadline_at,
+        )
+        if latest_end > current.definition.mission.deadline_at:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "REPLAN_EXCEEDS_APPROVED_DEADLINE"},
+            )
+        mission = current.definition.mission
+        updated_definition = current.definition.model_copy(update={
+            "scenario": scenario,
+            "mission": mission,
+        })
+
+        # Approval is atomic from the caller's perspective. Network-backed weather
+        # refresh or activation validation may fail; neither may consume the pending
+        # proposal or leave a half-updated runtime behind.
+        runtime_snapshot = {
+            "definition": current.definition,
+            "passes": current.passes,
+            "capacities": current.capacities,
+            "weather_snapshots": current.weather_snapshots,
+            "feasibility": current.feasibility,
+            "plans": dict(current.plans),
+            "current_plan_id": current.current_plan_id,
+            "dispatch": current.dispatch,
+            "simulation": current.simulation,
+        }
+        proposal_snapshot = proposal.model_copy(deep=True)
+        history_snapshot = deepcopy(session.replanner.plan_history)
+        try:
+            current.definition = updated_definition
+            decision = session.replanner.approve(proposal_id)
+            current.plans[decision.active_plan.plan_id] = decision.active_plan
+            session.service.activate_replan(
+                current.definition.scenario.scenario_id, decision.active_plan.plan_id
+            )
+            return decision
+        except Exception:
+            for key, value in runtime_snapshot.items():
+                setattr(current, key, value)
+            session.replanner.proposals[proposal_id] = proposal_snapshot
+            session.replanner.plan_history = history_snapshot
+            raise
 
     @router.post("/replans/{proposal_id}/reject", operation_id="rejectReplan")
     def reject_replan(

@@ -514,6 +514,84 @@ dd {
   100% { margin-left: 0; width: 30%; }
 }
 
+.constraint-backdrop {
+  min-height: calc(100vh - 180px);
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: radial-gradient(circle at center, rgba(30, 64, 110, .13), transparent 52%);
+}
+
+.constraint-dialog {
+  width: min(820px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+  border: 1px solid rgba(251, 146, 60, .55);
+  background: rgba(12, 18, 30, .98);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .45);
+}
+
+.constraint-dialog h2, .constraint-dialog p { margin: 0; }
+.constraint-detail { color: #fbbf24; font-family: var(--font-mono); }
+.constraint-numbers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.constraint-numbers div { display: grid; gap: 5px; padding: 14px; border: 1px solid rgba(96, 165, 250, .25); background: rgba(30, 58, 95, .18); }
+.constraint-numbers small { color: var(--text-muted); }
+.constraint-numbers strong { color: #93c5fd; font-size: 22px; }
+.constraint-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.constraint-options button { display: grid; gap: 7px; padding: 15px; text-align: left; }
+.constraint-options button span { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+
+@media (max-width: 720px) {
+  .constraint-numbers, .constraint-options { grid-template-columns: 1fr; }
+}
+
+.action-progress {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  color: var(--cyan);
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.live-plan-delta {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0;
+  padding: 14px 16px;
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.07);
+}
+
+.live-plan-delta b { color: var(--amber); }
+.live-plan-delta span, .live-plan-delta small { color: var(--text-secondary); }
+
+.action-progress::before {
+  content: '';
+  height: 4px;
+  border: 1px solid var(--border);
+  background: rgba(76, 201, 240, 0.08);
+  overflow: hidden;
+}
+
+.action-progress > span {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 28%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  animation: action-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes action-progress-slide {
+  0% { left: 1px; }
+  50% { left: 72%; }
+  100% { left: 1px; }
+}
+
 /* ─── LIVE UNAVAILABLE PLACEHOLDER ──────────────────────────────────────── */
 .live-unavailable {
   min-height: calc(100vh - 120px);

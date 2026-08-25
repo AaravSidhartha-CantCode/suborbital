@@ -5,7 +5,6 @@ import * as THREE from 'three'
 import { feature } from 'topojson-client'
 import countries from 'world-atlas/countries-110m.json'
 import type { WeatherVisual } from './LiveWeather'
-import { useMissionStore } from './store'
 
 export type GroundPoint = { latitude_deg: number; longitude_deg: number }
 export type StationMarker = GroundPoint & { station_id: string; name: string; classification: string; assumed_fields: string[] }
@@ -36,7 +35,7 @@ function countryLines(): THREE.Vector3[][] {
   return lines
 }
 
-function SatelliteAsset({ position, band }: { position: THREE.Vector3, band?: string }) {
+function SatelliteAsset({ position }: { position: THREE.Vector3 }) {
   return (
     <group position={position} scale={1.5}>
       {/* Central Bus */}
@@ -175,8 +174,6 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
   const satellitePosition = satellite ? point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius) : track[0] ?? new THREE.Vector3(2.4, 0, 0)
   const activeStation = stations.find((station) => station.station_id === activeStationId)
   const activeLink = activeStation ? [point(activeStation.latitude_deg, activeStation.longitude_deg, 2.04), satellitePosition] : null
-  const draft = useMissionStore((s) => s.draft)
-  
   return (
     <group rotation={[.08, -.45, -.12]}>
       {/* Main Earth Sphere - Deep Space Look */}
@@ -224,7 +221,7 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
       })}
       
       {activeStation && weather && <WeatherEffect position={point(activeStation.latitude_deg, activeStation.longitude_deg, 2.06)} weather={weather}/>}
-      <SatelliteAsset position={satellitePosition} band={draft?.band} />
+      <SatelliteAsset position={satellitePosition} />
       <OrbitInteraction track={track} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} satellitePosition={satellitePosition} setDragging={setDragging} />
     </group>
   )

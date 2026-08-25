@@ -6,6 +6,7 @@ export const simulationState = {
   delivered_mb: 0, remaining_mb: 3000, paused: true, speed: 'paused',
   satellite: { satellite_id: 'sat_browser01', latitude_deg: 1, longitude_deg: 2, altitude_km: 550, modeled: true },
   current_contact: null, predicted_final_mb: 3000, predicted_shortfall_mb: 0,
+  confirmed_shortfall_mb: 0, shortfall_status: 'clear', committed_cost: '0', remaining_budget: '1000', maximum_budget: '1000', cost_assumed: true,
   required_mb: 3000, resolution_required: false, event_count: 1,
   preflight: { capacity_policy: 'frozen', weather_frozen: true, ledger_allocated_mb: 3000, ledger_capacity_mb: 3200, feasible: true },
   plan: { plan_id: 'plan_browser0001', version: 1, planned_completion_at: '2026-08-21T06:00:00Z', estimated_total_cost: '100' },

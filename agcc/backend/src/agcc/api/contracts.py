@@ -57,6 +57,12 @@ class FeasibilityRequest(BaseModel):
 
 class PlanRequest(BaseModel):
     plan_id: str | None = None
+    mission_window_start: datetime | None = None
+
+    @field_validator("mission_window_start", mode="before")
+    @classmethod
+    def validate_window_start(cls, value: Any) -> Any:
+        return value if value is None else _require_utc(value)
 
 
 class SimulationStartRequest(BaseModel):
@@ -89,9 +95,30 @@ class SimulationForkRequest(BaseModel):
 
 class AnomalyRequest(BaseModel):
     anomaly_type: AnomalyType
+    station_id: str | None = None
     affected_contact_ids: list[str] = Field(default_factory=list)
     rate_multiplier: float = Field(ge=0.0, le=1.0)
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    cause: str | None = None
+    assumptions: list[str] = Field(default_factory=list)
     description: str = Field(min_length=1)
+
+    @field_validator("starts_at", "ends_at", mode="before")
+    @classmethod
+    def anomaly_times(cls, value: Any) -> Any:
+        return value if value is None else _require_utc(value)
+
+    @model_validator(mode="after")
+    def anomaly_time_order(self) -> AnomalyRequest:
+        if (
+            self.ends_at is not None
+            and self.starts_at is not None
+            and self.ends_at <= self.starts_at
+        ):
+            raise ValueError("ends_at must be after starts_at")
+        return self
 
 
 class ReplanRequest(BaseModel):
@@ -145,7 +172,13 @@ class AnomalyImpactData(BaseModel):
     anomaly_id: str
     anomaly_type: AnomalyType
     affected_contact_ids: list[str]
+    station_id: str | None = None
     rate_multiplier: float
+    starts_at: datetime
+    ends_at: datetime | None = None
+    confidence: float | None = None
+    cause: str | None = None
+    assumptions: list[str] = Field(default_factory=list)
     estimated_capacity_reduction_mb: float
     description: str
 

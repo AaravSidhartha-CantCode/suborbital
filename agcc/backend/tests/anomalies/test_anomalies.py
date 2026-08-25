@@ -86,6 +86,53 @@ def test_explicit_sixty_percent_reduction_is_copied_not_invented() -> None:
     assert proposal.rate_multiplier == pytest.approx(0.4)
 
 
+def test_llm_suggested_multiplier_and_interval_are_preserved_for_confirmation() -> None:
+    service = AnomalyService()
+    intent = ParsedAnomalyIntent(
+        anomaly_type=AnomalyType.RATE_DEGRADATION,
+        station_id="station_alpha",
+        suggested_multiplier=0.58,
+        confidence=0.71,
+        cause="wildfire smoke",
+        assumptions=["station remains operational"],
+        starts_at=NOW,
+        ends_at=NOW + timedelta(hours=2),
+    )
+
+    class Parser:
+        async def parse(self, text: str, context: AnomalyContext) -> ParsedAnomalyIntent:
+            del text, context
+            return intent
+
+    proposal = asyncio.run(
+        service.propose_text("scenario_test", "wildfire smoke", context(), Parser(), NOW)
+    )
+    assert proposal.status == ProposalStatus.PENDING
+    assert proposal.rate_multiplier == pytest.approx(0.58)
+    active = service.confirm(proposal.proposal_id, NOW)
+    assert active.ends_at == NOW + timedelta(hours=2)
+    assert active.cause == "wildfire smoke"
+
+
+def test_zero_llm_degradation_is_rejected_instead_of_becoming_an_outage() -> None:
+    service = AnomalyService()
+
+    class Parser:
+        async def parse(self, text: str, context: AnomalyContext) -> ParsedAnomalyIntent:
+            del text, context
+            return ParsedAnomalyIntent(
+                anomaly_type=AnomalyType.RATE_DEGRADATION,
+                station_id="station_alpha",
+                suggested_multiplier=0.0,
+            )
+
+    proposal = asyncio.run(
+        service.propose_text("scenario_test", "heavy rain", context(), Parser(), NOW)
+    )
+    assert proposal.status == ProposalStatus.NEEDS_CLARIFICATION
+    assert proposal.rate_multiplier is None
+
+
 def test_vague_station_weather_text_needs_clarification() -> None:
     service = AnomalyService()
     proposal = asyncio.run(

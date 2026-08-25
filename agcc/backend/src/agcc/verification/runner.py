@@ -93,8 +93,10 @@ class GoldenVerificationRunner:
             scenario_id,
             AnomalyRequest(
                 anomaly_type=AnomalyType.STATION_UNAVAILABLE,
+                station_id=outage_config["station_id"],
                 affected_contact_ids=future_outage_contacts,
                 rate_multiplier=outage_config["rate_multiplier"],
+                starts_at=first_contact.end_at,
                 description=outage_config["description"],
             ),
         )

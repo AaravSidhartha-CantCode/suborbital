@@ -63,6 +63,28 @@ def load_catalog_from_file(path: Path) -> StationCatalog:
     """
     raw = json.loads(path.read_text(encoding="utf-8"))
     stations_raw: list[object] = raw.get("stations", [])
+    for item in stations_raw:
+        if not isinstance(item, dict):
+            continue
+        provenance = item.get("field_provenance", {})
+        assumptions = (
+            set(provenance.get("assumptions", []))
+            if isinstance(provenance, dict)
+            else set()
+        )
+        missing_assumed_price = (
+            float(item.get("booking_cost", 0.0)) == 0.0
+            and float(item.get("cost_per_minute", 0.0)) == 0.0
+            and {"booking_cost", "cost_per_minute"} <= assumptions
+        )
+        if missing_assumed_price:
+            # Stable demo-only pricing. Capability is used only to create useful,
+            # deterministic variation; provenance continues to mark both values
+            # as assumptions and the UI displays its assumption marker.
+            rate = min(600.0, float(item.get("max_downlink_rate_mbps") or 0.0))
+            item["cost_model"] = "per_contact_plus_minute"
+            item["booking_cost"] = round(20.0 + rate * 0.05, 2)
+            item["cost_per_minute"] = round(4.0 + rate * 0.015, 2)
     stations = [GroundStation.model_validate(s) for s in stations_raw]
     stations.sort(key=lambda s: s.station_id)
 

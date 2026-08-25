@@ -113,6 +113,21 @@ def test_explicit_percentage_is_copied_but_invented_percentage_is_removed() -> N
     assert parsed_invented.anomaly_type == AnomalyType.RATE_DEGRADATION
 
 
+def test_llm_multiplier_confidence_and_arbitrary_cause_are_retained() -> None:
+    parser = GraniteAnomalyIntentParser(FakeClient({
+        "anomaly_type": "rate_degradation",
+        "station_id": "station_alpha",
+        "suggested_multiplier": 0.58,
+        "confidence": 0.71,
+        "cause": "political transmission restriction",
+        "assumptions": ["station remains online"],
+    }))
+    parsed = asyncio.run(parser.parse("Political transmission restriction", context()))
+    assert parsed.suggested_multiplier == pytest.approx(0.58)
+    assert parsed.confidence == pytest.approx(0.71)
+    assert parsed.cause == "political transmission restriction"
+
+
 def test_human_station_name_is_normalized_to_catalogue_id() -> None:
     parser = GraniteAnomalyIntentParser(FakeClient({
         "anomaly_type": "station_outage",

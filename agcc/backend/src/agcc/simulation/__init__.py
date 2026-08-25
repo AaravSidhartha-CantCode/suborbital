@@ -296,7 +296,12 @@ class SimulationEngine:
         self._frozen_capacity_policy = frozen_capacity_policy
 
         # Mutable state
-        self._seq = 0
+        existing_events = store.all_events()
+        self._seq = (
+            existing_events[-1].sequence_number + 1
+            if existing_events
+            else 0
+        )
         self._delivered_mb = initial_delivered_mb
         self._sim_time: datetime | None = None
         self._started = False
