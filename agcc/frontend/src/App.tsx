@@ -14,6 +14,33 @@ import './v2.css'
 import './runtime.css'
 import './runtime-v3.css'
 import './mission-controls.css'
+import './home.css'
+
+const LockIcon = () => (
+  <svg className="home-lock" viewBox="0 0 12 12" aria-hidden="true">
+    <rect x="2.2" y="5.2" width="7.6" height="5.4" rx="1" />
+    <path d="M3.8 5.2V3.8a2.2 2.2 0 0 1 4.4 0v1.4" />
+  </svg>
+)
+
+function GlobalHeader({ path, appliedDraft, onNavigate }: { path: string; appliedDraft: any; onNavigate: (path: string) => void }) {
+  return (
+    <header className="home-header" style={{ position: path === '/' ? 'absolute' : 'relative', width: '100%', boxSizing: 'border-box' }}>
+      <button className="home-brand" onClick={() => onNavigate('/')} aria-label="AGCC home">
+        <span className="home-brand-mark"><i /><i /><i /><i /></span>
+        <span><b>AGCC</b><small>ORBITAL SYSTEMS</small></span>
+      </button>
+      <nav className="home-nav" aria-label="Primary navigation">
+        <button className={path === '/' ? 'active' : ''} aria-current={path === '/' ? 'page' : undefined} onClick={() => onNavigate('/')}>HOME</button>
+        <button className={path.startsWith('/setup') ? 'active' : ''} aria-current={path.startsWith('/setup') ? 'page' : undefined} onClick={() => onNavigate('/setup/orbit')}>SETUP</button>
+        <button className={`locked ${path === '/mission' ? 'active' : ''}`} disabled={!appliedDraft} onClick={() => appliedDraft && onNavigate('/mission')} title={appliedDraft ? 'Open mission control' : 'Complete setup to unlock mission control'}>
+          MISSION {!appliedDraft && <LockIcon />}
+        </button>
+      </nav>
+      <div className="home-coordinate" aria-hidden="true"><span>OPS / 001</span><span>UTC +05:30</span></div>
+    </header>
+  )
+}
 
 const setupRoutes = ['/setup/orbit', '/setup/communications', '/setup/stations', '/setup/mission']
 const routeLabel: Record<string, string> = { '/setup/orbit': 'Orbit', '/setup/communications': 'Communications', '/setup/stations': 'Stations', '/setup/mission': 'Mission' }
@@ -370,10 +397,22 @@ function Mission() {
 export default function App() {
   const initialPath = location.pathname === '/mission' && !useMissionStore.getState().appliedDraft ? '/' : location.pathname
   const [path, setPath] = useState(initialPath)
-  const [connection, setConnection] = useState('CONNECTING')
   const { appliedDraft } = useMissionStore()
-  useEffect(() => { if (location.pathname !== initialPath) history.replaceState({}, '', initialPath); const pop = () => setPath(location.pathname); addEventListener('popstate', pop); fetch('/api/v1/health').then((response) => { if (!response.ok) throw new Error('Backend unavailable'); setConnection('BACKEND READY') }).catch(() => setConnection('BACKEND OFFLINE')); return () => removeEventListener('popstate', pop) }, [])
+  useEffect(() => { if (location.pathname !== initialPath) history.replaceState({}, '', initialPath); const pop = () => setPath(location.pathname); addEventListener('popstate', pop); fetch('/api/v1/health').catch(console.error); return () => removeEventListener('popstate', pop) }, [])
   const setupVisible = path.startsWith('/setup/')
-  if (path === '/') return <Home missionUnlocked={Boolean(appliedDraft)} onNavigate={(next) => navigate(next, setPath)} />
-  return <main className="app-shell"><header className="topbar"><div className="brand-lockup"><button className="brand-mark" onClick={() => navigate('/', setPath)} aria-label="Return home">A</button><div><span className="eyebrow">AUTONOMOUS GROUND CONTACT CONTROL</span><h1>Custom Satellite Downlink</h1></div></div><nav className="main-nav"><button onClick={() => navigate('/', setPath)}>Home</button><button disabled={!appliedDraft} className={path === '/mission' ? 'active' : ''} onClick={() => navigate('/mission', setPath)}>Mission</button><button className={setupVisible ? 'active' : ''} onClick={() => navigate('/setup/orbit', setPath)}>Setup</button></nav><div className="mission-status"><span className={`status-chip ${connection === 'BACKEND READY' ? 'live' : ''}`}><i/>{connection}</span></div></header><div hidden={!setupVisible}><Setup path={path} setPath={setPath}/></div><div hidden={setupVisible}><Mission/></div></main>
+  
+  return (
+    <>
+      <GlobalHeader path={path} appliedDraft={appliedDraft} onNavigate={(next) => navigate(next, setPath)} />
+      {path === '/' ? (
+        <Home onNavigate={(next) => navigate(next, setPath)} />
+      ) : (
+        <main className={setupVisible ? 'home setup-mode' : 'app-shell'}>
+          {setupVisible && <div className="home-noise" />}
+          <div hidden={!setupVisible}><Setup path={path} setPath={setPath}/></div>
+          <div hidden={setupVisible}><Mission/></div>
+        </main>
+      )}
+    </>
+  )
 }
