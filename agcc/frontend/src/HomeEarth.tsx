@@ -1,68 +1,173 @@
-import { Line, Stars } from '@react-three/drei'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { Line, Stars, useTexture, Html } from '@react-three/drei'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { useMemo, useRef, Suspense, Component, ReactNode, useEffect } from 'react'
 import * as THREE from 'three'
-import { feature } from 'topojson-client'
-import countries from 'world-atlas/countries-110m.json'
 
-type GeoGeometry = { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] }
-type GeoFeatureCollection = { features: { geometry: GeoGeometry | null }[] }
 
-const globePoint = (latitude: number, longitude: number, radius: number) => {
-  const lat = latitude * Math.PI / 180, lon = longitude * Math.PI / 180
-  return new THREE.Vector3(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon)).multiplyScalar(radius)
-}
-
-function countryOutlines() {
-  const object = (countries as { objects: { countries: unknown } }).objects.countries
-  const collection = feature(countries as never, object as never) as unknown as GeoFeatureCollection
-  const lines: THREE.Vector3[][] = []
-  for (const item of collection.features) {
-    if (!item.geometry) continue
-    const polygons = item.geometry.type === 'Polygon' ? [item.geometry.coordinates as number[][][]] : item.geometry.coordinates as number[][][][]
-    for (const polygon of polygons) for (const ring of polygon) if (ring.length > 1) lines.push(ring.map(([lon, lat]) => globePoint(lat, lon, 2.014)))
+class ErrorBoundary extends Component<{children: ReactNode, fallback: (err: Error) => ReactNode}, {error: Error | null}> {
+  state = { error: null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  render() {
+    if (this.state.error) return this.props.fallback(this.state.error)
+    return this.props.children
   }
-  return lines
 }
+
+const atmosphereVertexShader = `
+  varying vec3 vNormal;
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const atmosphereFragmentShader = `
+  varying vec3 vNormal;
+  void main() {
+    // vNormal points inward for BackSide. At the absolute edge, dot is 0. 
+    // This perfectly fades to 0 at the outer boundary, eliminating any hard edge.
+    float intensity = pow(max(-dot(vNormal, vec3(0, 0, 1.0)), 0.0), 1.5);
+    gl_FragColor = vec4(0.2, 0.7, 1.0, 1.0) * intensity * 2.0;
+  }
+`
 
 function Satellite() {
   const ref = useRef<THREE.Group>(null)
   useFrame(({ clock }) => {
     if (!ref.current) return
-    const angle = clock.getElapsedTime() * .22
-    ref.current.position.set(Math.cos(angle) * 2.85, Math.sin(angle) * 1.32, Math.sin(angle) * 2.48)
+    const angle = clock.getElapsedTime() * .12
+    ref.current.position.set(Math.cos(angle) * 4.8, Math.sin(angle) * 1.5, Math.sin(angle) * 5.5)
     ref.current.rotation.set(angle * .18, -angle, .24)
   })
-  return <group ref={ref} scale={.56}>
-    <mesh><boxGeometry args={[.32,.24,.26]} /><meshStandardMaterial color="#c9d0d3" metalness={.9} roughness={.24} /></mesh>
-    <mesh position={[-.5,0,0]}><boxGeometry args={[.66,.025,.28]} /><meshStandardMaterial color="#123d68" emissive="#062241" emissiveIntensity={.5} metalness={.65} roughness={.24} /></mesh>
-    <mesh position={[.5,0,0]}><boxGeometry args={[.66,.025,.28]} /><meshStandardMaterial color="#123d68" emissive="#062241" emissiveIntensity={.5} metalness={.65} roughness={.24} /></mesh>
-    <mesh position={[0,-.22,0]} rotation={[Math.PI / 2,0,0]}><cylinderGeometry args={[.15,.035,.09,24]} /><meshStandardMaterial color="#d9e3e5" metalness={.72} roughness={.3} /></mesh>
-    <pointLight color="#72ecff" intensity={2.2} distance={1.3} />
+  
+  const c = "#e1ff00";
+  return <group ref={ref} scale={.6}>
+    <mesh><boxGeometry args={[.32,.24,.26]} /><meshBasicMaterial color={c} wireframe /></mesh>
+    <mesh><boxGeometry args={[.16,.4,.16]} /><meshBasicMaterial color={c} wireframe /></mesh>
+    <mesh position={[-.6,0,0]}><boxGeometry args={[.8,.025,.28]} /><meshBasicMaterial color={c} wireframe /></mesh>
+    <mesh position={[.6,0,0]}><boxGeometry args={[.8,.025,.28]} /><meshBasicMaterial color={c} wireframe /></mesh>
+    <mesh position={[-.6,0.02,0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[.8, .28, 4, 1]} /><meshBasicMaterial color={c} wireframe /></mesh>
+    <mesh position={[.6,0.02,0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[.8, .28, 4, 1]} /><meshBasicMaterial color={c} wireframe /></mesh>
+    <mesh position={[0,-.35,0]} rotation={[Math.PI / 2,0,0]}><cylinderGeometry args={[.1,.02,.2,16]} /><meshBasicMaterial color={c} wireframe /></mesh>
+    <mesh position={[0,.25,0]}><cylinderGeometry args={[.01,.01,.3,8]} /><meshBasicMaterial color={c} wireframe /></mesh>
   </group>
 }
 
 function EarthSystem() {
+  const [day, night, clouds] = useTexture([
+    '/textures/earth-day.jpg',
+    '/textures/earth-night.jpg',
+    '/textures/earth_clouds_1024.png'
+  ])
+
+  const { gl } = useThree()
+  useEffect(() => {
+    [day, night, clouds].forEach((tex) => {
+      tex.anisotropy = gl.capabilities.getMaxAnisotropy()
+    })
+  }, [day, night, clouds, gl])
+
   const earth = useRef<THREE.Group>(null)
-  const outlines = useMemo(countryOutlines, [])
-  const orbit = useMemo(() => Array.from({ length: 161 }, (_, i) => { const a = i / 160 * Math.PI * 2; return new THREE.Vector3(Math.cos(a) * 2.85, Math.sin(a) * 1.32, Math.sin(a) * 2.48) }), [])
-  useFrame((_, delta) => { if (earth.current) earth.current.rotation.y += delta * .035 })
-  return <group position={[.7,-.12,0]} rotation={[.1,-.55,-.08]}>
+  const cloudsRef = useRef<THREE.Mesh>(null)
+  
+  const orbit = useMemo(() => Array.from({ length: 161 }, (_, i) => { const a = i / 160 * Math.PI * 2; return new THREE.Vector3(Math.cos(a) * 4.8, Math.sin(a) * 1.5, Math.sin(a) * 5.5) }), [])
+  
+  useFrame((_, delta) => { 
+    if (earth.current) earth.current.rotation.y += delta * .02 
+    if (cloudsRef.current) cloudsRef.current.rotation.y += delta * .025
+  })
+
+  // Re-use a single geometry for performance (64 segments is plenty smooth with proper shaders)
+  const sphereGeo = useMemo(() => new THREE.SphereGeometry(3.4, 64, 64), []);
+
+  return <group position={[3.3,-.2,0]} rotation={[.15,-1.2,-.08]} scale={0.8}>
     <group ref={earth}>
-      <mesh castShadow receiveShadow><sphereGeometry args={[2,96,96]} /><meshPhysicalMaterial color="#071a25" emissive="#01070b" emissiveIntensity={.25} roughness={.82} metalness={.02} clearcoat={.12} /></mesh>
-      <mesh rotation={[.01,.02,.01]}><sphereGeometry args={[2.022,96,96]} /><meshStandardMaterial color="#b8d7d8" transparent opacity={.055} roughness={1} depthWrite={false} /></mesh>
-      {outlines.map((line,index) => <Line key={index} points={line} color="#78bdd0" lineWidth={.48} transparent opacity={.31} />)}
-      <mesh><sphereGeometry args={[2.065,72,72]} /><meshBasicMaterial color="#3ca6ca" side={THREE.BackSide} transparent opacity={.11} /></mesh>
-      <mesh><sphereGeometry args={[2.095,72,72]} /><meshBasicMaterial color="#73dbf6" side={THREE.BackSide} transparent opacity={.035} /></mesh>
+      {/* Base Earth (Cloudless) */}
+      <mesh castShadow receiveShadow geometry={sphereGeo}>
+        <meshStandardMaterial 
+          map={day} 
+          emissiveMap={night}
+          emissive="#ffffff"
+          emissiveIntensity={4} 
+          roughness={0.7}
+        />
+      </mesh>
+
+      {/* Atmospheric Cloud Layer */}
+      <mesh ref={cloudsRef} geometry={sphereGeo} scale={1.008}>
+        <meshStandardMaterial 
+          map={clouds} 
+          transparent 
+          opacity={0.85} 
+          depthWrite={false} 
+          blending={THREE.AdditiveBlending}
+          color="#ffffff"
+        />
+      </mesh>
+      
+      {/* Hazy Atmosphere Glow (Blur/Glow on surface) */}
+      <mesh geometry={sphereGeo} scale={1.015}>
+        <meshBasicMaterial 
+          color="#7dd3fc"
+          transparent
+          opacity={0.05}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+      
+      {/* Sleek Cinematic Atmosphere Halo (Edge Glow) */}
+      <mesh geometry={sphereGeo} scale={1.2}>
+        <shaderMaterial 
+          vertexShader={atmosphereVertexShader}
+          fragmentShader={atmosphereFragmentShader}
+          blending={THREE.AdditiveBlending}
+          side={THREE.BackSide}
+          transparent={true}
+          depthWrite={false}
+        />
+      </mesh>
     </group>
-    <Line points={orbit} color="#70dff7" lineWidth={.55} transparent opacity={.22} />
+    
+    <Line points={orbit} color="#e1ff00" lineWidth={1.5} transparent opacity={0.6} />
     <Satellite />
   </group>
 }
 
 export function HomeEarth() {
-  return <Canvas camera={{ position:[0,0,7], fov:42 }} dpr={[1,1.65]} gl={{ antialias:true, alpha:true }}>
-    <ambientLight intensity={.12} /><directionalLight position={[-5,4,6]} intensity={4.2} color="#c9f2ff" /><directionalLight position={[5,-2,-4]} intensity={.7} color="#0d4f78" /><pointLight position={[2,4,5]} intensity={1.4} color="#75dfff" distance={12} />
-    <Stars radius={70} depth={28} count={1200} factor={1.4} saturation={.25} fade speed={.08} /><EarthSystem />
+  return <Canvas camera={{ position:[0,0,8.5], fov:40 }} dpr={[1,2]} gl={{ antialias:true, alpha:false, powerPreference: "high-performance" }}>
+    <color attach="background" args={['#010204']} />
+    
+    <ambientLight intensity={0.01} />
+    
+    {/* Cinematic backlit lighting setup - Single strong light for pure black dropoff */}
+    <directionalLight position={[-8, 4, -8]} intensity={8} color="#dbeafe" />
+    
+    {/* Sun Glow/Mesh - positioned behind the earth to match backlit lighting */}
+    <mesh position={[-20, 10, -20]}>
+      <sphereGeometry args={[1.5, 32, 32]} />
+      <meshBasicMaterial color="#ffffff" />
+      <pointLight intensity={10} distance={100} decay={2} color="#ffffff" />
+    </mesh>
+    <mesh position={[-20, 10, -20]}>
+      <sphereGeometry args={[3.0, 32, 32]} />
+      <meshBasicMaterial color="#dbeafe" transparent opacity={0.3} blending={THREE.AdditiveBlending} />
+    </mesh>
+    
+    <Stars radius={100} depth={50} count={3500} factor={3} saturation={.8} fade speed={.05} />
+    
+    <ErrorBoundary fallback={(err) => (
+      <Html center>
+        <div style={{ color: 'red', background: 'white', padding: 20 }}>
+          Error: {err.message}
+        </div>
+      </Html>
+    )}>
+      <Suspense fallback={null}>
+        <EarthSystem />
+      </Suspense>
+    </ErrorBoundary>
   </Canvas>
 }
+
+
