@@ -4,6 +4,7 @@ import { AssumptionMark } from './DataStatus'
 import { GlobeView, type GroundPoint, type SatelliteMarker, type StationMarker } from './GlobeView'
 import { LiveWeather, type WeatherVisual } from './LiveWeather'
 import { StationCatalogPicker } from './StationCatalogPicker'
+import { Home } from './Home'
 import { useMissionStore, type Draft, type MissionMode } from './store'
 import './weather.css'
 import './assumptions.css'
@@ -367,11 +368,12 @@ function Mission() {
 }
 
 export default function App() {
-  const initialPath = location.pathname === '/' || location.pathname === '/mission' ? '/setup/orbit' : location.pathname
+  const initialPath = location.pathname === '/mission' && !useMissionStore.getState().appliedDraft ? '/' : location.pathname
   const [path, setPath] = useState(initialPath)
   const [connection, setConnection] = useState('CONNECTING')
   const { appliedDraft } = useMissionStore()
   useEffect(() => { if (location.pathname !== initialPath) history.replaceState({}, '', initialPath); const pop = () => setPath(location.pathname); addEventListener('popstate', pop); fetch('/api/v1/health').then((response) => { if (!response.ok) throw new Error('Backend unavailable'); setConnection('BACKEND READY') }).catch(() => setConnection('BACKEND OFFLINE')); return () => removeEventListener('popstate', pop) }, [])
   const setupVisible = path.startsWith('/setup/')
-  return <main className="app-shell"><header className="topbar"><div className="brand-lockup"><div className="brand-mark">A</div><div><span className="eyebrow">AUTONOMOUS GROUND CONTACT CONTROL</span><h1>Custom Satellite Downlink</h1></div></div><nav className="main-nav"><button disabled={!appliedDraft} className={path === '/mission' ? 'active' : ''} onClick={() => navigate('/mission', setPath)}>Mission</button><button className={setupVisible ? 'active' : ''} onClick={() => navigate('/setup/orbit', setPath)}>Setup</button></nav><div className="mission-status"><span className={`status-chip ${connection === 'BACKEND READY' ? 'live' : ''}`}><i/>{connection}</span></div></header><div hidden={!setupVisible}><Setup path={path} setPath={setPath}/></div><div hidden={setupVisible}><Mission/></div></main>
+  if (path === '/') return <Home missionUnlocked={Boolean(appliedDraft)} onNavigate={(next) => navigate(next, setPath)} />
+  return <main className="app-shell"><header className="topbar"><div className="brand-lockup"><button className="brand-mark" onClick={() => navigate('/', setPath)} aria-label="Return home">A</button><div><span className="eyebrow">AUTONOMOUS GROUND CONTACT CONTROL</span><h1>Custom Satellite Downlink</h1></div></div><nav className="main-nav"><button onClick={() => navigate('/', setPath)}>Home</button><button disabled={!appliedDraft} className={path === '/mission' ? 'active' : ''} onClick={() => navigate('/mission', setPath)}>Mission</button><button className={setupVisible ? 'active' : ''} onClick={() => navigate('/setup/orbit', setPath)}>Setup</button></nav><div className="mission-status"><span className={`status-chip ${connection === 'BACKEND READY' ? 'live' : ''}`}><i/>{connection}</span></div></header><div hidden={!setupVisible}><Setup path={path} setPath={setPath}/></div><div hidden={setupVisible}><Mission/></div></main>
 }
