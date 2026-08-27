@@ -53,7 +53,7 @@ function Satellite() {
   </group>
 }
 
-function EarthSystem() {
+export function EarthSystem() {
   const [day, night, clouds] = useTexture([
     '/textures/earth-day.jpg',
     '/textures/earth-night.jpg',

@@ -4,9 +4,12 @@ import { AssumptionMark } from './DataStatus'
 import { GlobeView, type GroundPoint, type SatelliteMarker, type StationMarker } from './GlobeView'
 import { LiveWeather, type WeatherVisual } from './LiveWeather'
 import { StationCatalogPicker } from './StationCatalogPicker'
+
+import { AsteroidBackground, ScrubberInput, PresetSelector, SatelliteWireframe } from './SetupComponents'
 import { Home } from './Home'
 import { useMissionStore, type Draft, type MissionMode } from './store'
 import './weather.css'
+import './setup-glassmorphism.css'
 import './assumptions.css'
 import './styles.css'
 import './task15.css'
@@ -47,7 +50,12 @@ const routeLabel: Record<string, string> = { '/setup/orbit': 'Orbit', '/setup/co
 const sessionKeys: Record<MissionMode, string> = { prediction: 'agcc.session.prediction.v2', live: 'agcc.session.live.v2', branch: 'agcc.session.anomaly.v2' }
 const clients: Record<MissionMode, AgccClient> = { prediction: new AgccClient('', sessionKeys.prediction), live: new AgccClient('', sessionKeys.live), branch: new AgccClient('', sessionKeys.branch) }
 const navigate = (path: string, setPath: (path: string) => void) => { history.pushState({}, '', path); setPath(path) }
-const Field = ({ label, children }: { label: string; children: React.ReactNode }) => <label className="field"><span>{label}</span>{children}</label>
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="glass-value-box">
+    {children}
+    <span className="right-label">{label}</span>
+  </div>
+)
 
 type Opportunity = { pass_id: string; contact_id: string | null; station_id: string; station_name: string; start_at: string; end_at: string; volume_mb: number; classification: string; reason: string; planned_cost?: string | null; actual_volume_mb?: number; completed_at?: string | null; usable_capacity_mb?: number; average_effective_rate_mbps?: number; weather_precipitation_mm_per_hr?: number | null; weather_valid_from?: string | null; weather_quality?: string | null }
 type Contact = { contact_id: string; station_id: string; station_name: string; start_at: string; end_at: string; rate_mbps: number; band: string; anomaly_multiplier: number; target_volume_mb: number; actual_volume_mb: number }
@@ -104,12 +112,193 @@ function Setup({ path, setPath }: { path: string; setPath: (path: string) => voi
   })
   const finish = () => { applyDraft(); navigate('/mission', setPath) }
   const chooseBand = (band: string) => updateDraft({ band, frequency: bandRanges[band][2], stations: [] })
-  return <section className="setup-shell"><aside className="setup-progress"><span className="eyebrow">SCENARIO SETUP</span>{setupRoutes.map((route, i) => <button className={route === path ? 'active' : i < index ? 'done' : ''} onClick={() => navigate(route, setPath)} key={route}><b>{i + 1}</b>{routeLabel[route]}</button>)}</aside><section className="setup-stage"><div className="setup-copy"><span className="eyebrow">STEP {index + 1} OF 4</span><h2>{routeLabel[path] ?? 'Orbit'}</h2></div>
-    {path === '/setup/orbit' && <div className="orbit-editor"><OrbitManipulator draft={draft} updateOrbit={updateOrbit}/><div className="field-grid"><Field label="Preset"><select value={draft.orbit.inclination_deg} onChange={(event) => updateOrbit({ inclination_deg: Number(event.target.value) })}><option value="53">Mid-inclination 550</option><option value="0">Equatorial 550</option><option value="90">Polar 550</option><option value="97.6">Retrograde demo 550</option></select></Field><Field label="Altitude (km)"><input type="number" min="200" max="2000" value={draft.orbit.altitude_km} onChange={(event) => updateOrbit({ altitude_km: +event.target.value })}/></Field><Field label="Inclination (degrees)"><input type="number" min="0" max="180" value={draft.orbit.inclination_deg} onChange={(event) => updateOrbit({ inclination_deg: +event.target.value })}/></Field><Field label="RAAN (degrees)"><input type="number" min="0" max="359.999" value={draft.orbit.raan_deg} onChange={(event) => updateOrbit({ raan_deg: +event.target.value })}/></Field><Field label="Phase (degrees)"><input type="number" min="0" max="359.999" value={draft.orbit.phase_deg} onChange={(event) => updateOrbit({ phase_deg: +event.target.value })}/></Field><Field label="Epoch UTC (initialized from this device)"><input value={draft.orbit.epoch} onChange={(event) => updateOrbit({ epoch: event.target.value })}/></Field></div></div>}
-    {path === '/setup/communications' && <div className="field-grid"><Field label="Band"><select value={draft.band} onChange={(event) => chooseBand(event.target.value)}><option>X</option><option>S</option><option>Ka</option></select></Field><Field label="Exact carrier frequency (GHz)"><input className={errors.some((item) => item.includes('-band')) ? 'invalid' : ''} type="number" step=".1" value={draft.frequency} onChange={(event) => updateDraft({ frequency: +event.target.value })}/><small>{draft.band}: {bandRanges[draft.band][0]}–{bandRanges[draft.band][1]} GHz</small></Field><Field label="Maximum downlink rate (Mbps)"><input type="number" min=".01" value={draft.rate} onChange={(event) => updateDraft({ rate: +event.target.value })}/></Field><Field label="Polarization (required)"><select value={draft.polarization} required onChange={(event) => updateDraft({ polarization: event.target.value as Draft['polarization'] })}><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option><option value="circular">Circular</option></select></Field><Field label="Protocol efficiency"><input type="number" step=".01" min=".01" max="1" value={draft.protocolEfficiency} onChange={(event) => updateDraft({ protocolEfficiency: +event.target.value })}/></Field></div>}
-    {path === '/setup/stations' && <StationCatalogPicker/>}
-    {path === '/setup/mission' && <div className="field-grid"><Field label="Required data (MB)"><input type="number" min=".01" value={draft.required} onChange={(event) => updateDraft({ required: +event.target.value })}/></Field><Field label="Hard deadline UTC"><input value={draft.deadline} onChange={(event) => updateDraft({ deadline: event.target.value })}/></Field><Field label="Maximum budget (USD)"><input type="number" min="0" value={draft.budget} onChange={(event) => updateDraft({ budget: +event.target.value })}/></Field><Field label="Planning preference"><select value={draft.preference} onChange={(event) => updateDraft({ preference: event.target.value })}><option value="fastest">Fastest</option><option value="lowest_cost">Lowest cost</option><option value="balanced">Balanced</option></select></Field></div>}
-    {visibleErrors.length > 0 && <div className="validation-errors">{visibleErrors.map((error) => <p key={error}>{error}</p>)}</div>}<div className="setup-actions"><button disabled={index === 0} onClick={() => navigate(setupRoutes[index - 1], setPath)}>Back</button><button className="primary" disabled={index === setupRoutes.length - 1 && errors.length > 0} onClick={() => index === setupRoutes.length - 1 ? finish() : navigate(setupRoutes[index + 1], setPath)}>{index === setupRoutes.length - 1 ? 'Apply & create isolated timelines' : 'Continue'}</button></div></section></section>
+  return (
+    <>
+      <AsteroidBackground />
+      <section className="setup-shell glass-island-layout">
+        <aside className="setup-progress glass-island-navigator">
+          <span className="eyebrow">SCENARIO SETUP</span>
+          {setupRoutes.map((route, i) => (
+            <button className={route === path ? 'active' : i < index ? 'done' : ''} onClick={() => navigate(route, setPath)} key={route}>
+              <b>{i + 1}</b>{routeLabel[route]}
+            </button>
+          ))}
+        </aside>
+        
+        <section className="setup-stage">
+          <div className="setup-copy">
+            <span className="eyebrow">STEP {index + 1} OF 4</span>
+            <h2>{routeLabel[path] ?? 'Orbit'}</h2>
+          </div>
+          
+          {path === '/setup/orbit' && (
+            <div className="orbit-editor">
+              <div className="glass-island-globe" style={{ flex: '0 0 55%' }}>
+                <OrbitManipulator draft={draft} updateOrbit={updateOrbit}/>
+              </div>
+              <div className="setup-form-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div className="glass-island-form" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <h3 className="island-title">Orbital Parameters</h3>
+                  <PresetSelector value={draft.orbit.inclination_deg} onChange={(val) => updateOrbit({ inclination_deg: val })} />
+                  <div className="field-grid">
+                    <ScrubberInput label="Altitude (km)" min={200} max={2000} value={draft.orbit.altitude_km} onChange={(val) => updateOrbit({ altitude_km: val })} />
+                    <ScrubberInput label="Inclination (degrees)" min={0} max={180} value={draft.orbit.inclination_deg} onChange={(val) => updateOrbit({ inclination_deg: val })} />
+                    <ScrubberInput label="RAAN (degrees)" min={0} max={359.999} value={draft.orbit.raan_deg} onChange={(val) => updateOrbit({ raan_deg: val })} />
+                    <ScrubberInput label="Phase (degrees)" min={0} max={359.999} value={draft.orbit.phase_deg} onChange={(val) => updateOrbit({ phase_deg: val })} />
+                  </div>
+                </div>
+                <button className="home-cta" onClick={() => navigate('/setup/communications', setPath)} style={{ width: '100%', marginTop: 'auto' }}>
+                  CONTINUE TO COMMUNICATIONS
+                  <div className="home-cta-target"><i/><i/></div>
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {path === '/setup/communications' && (
+            <div className="setup-island-row">
+              <div className="setup-form-column" style={{ flex: 1.2, gap: '12px' }}>
+                <div className="glass-island-form" style={{ flex: 1, justifyContent: 'center' }}>
+                  <h3 className="island-title">Radio Parameters</h3>
+                  <div className="field-grid">
+                    <Field label="Band">
+                      <select value={draft.band} onChange={(event) => chooseBand(event.target.value)}>
+                        <option value="X">X [8–12 GHz]</option>
+                        <option value="S">S [2–4 GHz]</option>
+                        <option value="Ka">Ka [26.5–40 GHz]</option>
+                      </select>
+                    </Field>
+                    <Field label="Exact carrier frequency (GHz)">
+                      <input className={errors.some((item) => item.includes('-band')) ? 'invalid' : ''} type="number" step=".1" value={draft.frequency} onChange={(event) => updateDraft({ frequency: +event.target.value })}/>
+                    </Field>
+                    <Field label="Maximum downlink rate (Mbps)">
+                      <input type="number" min=".01" value={draft.rate} onChange={(event) => updateDraft({ rate: +event.target.value })}/>
+                    </Field>
+                  </div>
+                </div>
+                  
+                <div className="glass-island-form" style={{ flex: 1, justifyContent: 'center' }}>
+                  <h3 className="island-title">Signal & Protocol</h3>
+                  <div className="field-grid">
+                    <Field label="Polarization (required)">
+                      <select value={draft.polarization} required onChange={(event) => updateDraft({ polarization: event.target.value as Draft['polarization'] })}>
+                        <option value="horizontal">Horizontal</option>
+                        <option value="vertical">Vertical</option>
+                        <option value="circular">Circular</option>
+                      </select>
+                    </Field>
+                    <Field label="Protocol efficiency">
+                      <input type="number" step=".01" min=".01" max="1" value={draft.protocolEfficiency} onChange={(event) => updateDraft({ protocolEfficiency: +event.target.value })}/>
+                    </Field>
+                    <div className="glass-value-box">
+                      <div className="glass-value-text">
+                        {(draft.rate * draft.protocolEfficiency).toFixed(1)} Mbps
+                      </div>
+                      <span className="right-label">TELEMETRY OUTPUT</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="setup-form-column" style={{ flex: 1, gap: '12px' }}>
+                <div className="glass-island-globe" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <SatelliteWireframe />
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: 'auto' }}>
+                  <button className="home-cta" disabled={errors.some(e => e.includes('-band') || e.includes('Rate'))} onClick={() => navigate('/setup/stations', setPath)} style={{ width: '100%' }}>
+                    CONTINUE TO STATIONS
+                    <div className="home-cta-target"><i/><i/></div>
+                  </button>
+                  <button className="home-cta secondary" onClick={() => navigate('/setup/orbit', setPath)} style={{ width: '100%' }}>
+                    ← BACK TO ORBIT
+                    <div className="home-cta-target"><i/><i/></div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {path === '/setup/stations' && <StationCatalogPicker onBack={() => navigate('/setup/communications', setPath)} onContinue={() => navigate('/setup/mission', setPath)}/>}
+          
+          {path === '/setup/mission' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, minHeight: 0 }}>
+              <div className="setup-island-row">
+                <div className="setup-form-column" style={{ flex: 1 }}>
+                  <div className="glass-island-form">
+                    <h3 className="island-title">Mission Targets</h3>
+                    <div className="field-grid">
+                      <Field label="Required data (MB)">
+                        <input type="number" min=".01" value={draft.required} onChange={(event) => updateDraft({ required: +event.target.value })}/>
+                      </Field>
+                      <Field label="Hard deadline UTC">
+                        <input value={draft.deadline} onChange={(event) => updateDraft({ deadline: event.target.value })}/>
+                      </Field>
+                    </div>
+                  </div>
+                </div>
+                <div className="setup-form-column" style={{ flex: 1 }}>
+                  <div className="glass-island-form">
+                    <h3 className="island-title">Resource Constraints</h3>
+                    <div className="field-grid">
+                      <Field label="Maximum budget (USD)">
+                        <input type="number" min="0" value={draft.budget} onChange={(event) => updateDraft({ budget: +event.target.value })}/>
+                      </Field>
+                      <Field label="Planning preference">
+                        <select value={draft.preference} onChange={(event) => updateDraft({ preference: event.target.value })}>
+                          <option value="fastest">Fastest</option><option value="lowest_cost">Lowest cost</option><option value="balanced">Balanced</option>
+                        </select>
+                      </Field>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="glass-island-form manifest-panel">
+                <h3 className="island-title" style={{ color: '#94a3b8' }}>PRE-COMPUTATION MANIFEST</h3>
+                <div className="manifest-grid">
+                  <div className="manifest-col">
+                    <span className="manifest-label">Orbit</span>
+                    <span className="manifest-value">{draft.orbit.altitude_km.toFixed(0)}km @ {draft.orbit.inclination_deg.toFixed(1)}°</span>
+                  </div>
+                  <div className="manifest-col">
+                    <span className="manifest-label">Comms</span>
+                    <span className="manifest-value">{draft.band} Band ({draft.rate} Mbps)</span>
+                  </div>
+                  <div className="manifest-col">
+                    <span className="manifest-label">Ground</span>
+                    <span className="manifest-value">{draft.stations.length} Stations Linked</span>
+                  </div>
+                  <div className="manifest-status">
+                    <div className="status-ring"></div>
+                    <span>SYSTEM NOMINAL</span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '24px' }}>
+                <div style={{ flex: 1 }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button className="home-cta secondary" onClick={() => navigate('/setup/stations', setPath)} style={{ width: '100%' }}>
+                    ← BACK TO STATIONS
+                    <div className="home-cta-target"><i/><i/></div>
+                  </button>
+                  <button className="home-cta" disabled={errors.length > 0} onClick={() => finish()} style={{ width: '100%' }}>
+                    APPLY & CREATE TIMELINES
+                    <div className="home-cta-target"><i/><i/></div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {visibleErrors.length > 0 && (
+            <div className="validation-errors">
+              {visibleErrors.map((error) => <p key={error}>{error}</p>)}
+            </div>
+          )}
+        </section>
+      </section>
+    </>
+  )
 }
 
 function buildPayload(draft: Draft, mode: MissionMode, revision: number) {
@@ -117,7 +306,7 @@ function buildPayload(draft: Draft, mode: MissionMode, revision: number) {
   return { scenario: { scenario_id: `scenario_${suffix}`, name: `${mode} browser mission`, satellite_id: `sat_${suffix}`, station_ids: draft.stations, mission_id: `mission_${suffix}`, constraints: { maximum_budget: String(draft.budget), currency: 'USD', station_selection: { allow_all_eligible: false, authorized_station_ids: draft.stations }, planning_preference: draft.preference, allow_additional_contact_proposals: true } }, satellite: { satellite_id: `sat_${suffix}`, name: 'Custom satellite', orbit: draft.orbit, comms: { band: draft.band, carrier_frequency_ghz: draft.frequency, max_downlink_rate_mbps: draft.rate, protocol_efficiency: draft.protocolEfficiency, min_elevation_deg: 5, polarization: draft.polarization }, provenance: { source_type: 'manual', source_name: 'browser-session', fetched_at: new Date().toISOString(), assumption_fields: ['orbit', 'comms'] } }, mission: { mission_id: `mission_${suffix}`, name: 'Custom downlink', required_volume_mb: draft.required, release_at: draft.orbit.epoch, deadline_at: draft.deadline } }
 }
 
-function ModeTabs() { const { mode, setMode } = useMissionStore(); return <div className="mode-tabs" role="tablist">{([['prediction','Prediction'],['live','Live sources'],['branch','Anomalies']] as [MissionMode,string][]).map(([id,label]) => <button role="tab" aria-selected={mode === id} className={mode === id ? 'active' : ''} onClick={() => setMode(id)} key={id}>{label}</button>)}</div> }
+function ModeTabs() { const { mode, setMode } = useMissionStore(); return <div className="mode-tabs" role="tablist">{([['prediction','Prediction'],['live','Real time simulation'],['branch','Anomalies']] as [MissionMode,string][]).map(([id,label]) => <button role="tab" aria-selected={mode === id} className={mode === id ? 'active' : ''} onClick={() => setMode(id)} key={id}>{label}</button>)}</div> }
 
 function AnomalyChat({ runtime, refresh, resetToStart }: { runtime: Runtime; refresh: () => void; resetToStart: () => void }) {
   const client = clients.branch
@@ -377,18 +566,16 @@ function Mission() {
   const approveResolution = () => resolutionProposal && client.request(`/replans/${resolutionProposal.proposal_id}/approve`, { method: 'POST', body: JSON.stringify({ reason: 'User approved the validated shortfall resolution' }) }).then(() => { setResolutionProposal(null); setResolution(null); fetchingResolution.current[mode] = false; void refresh(mode) }).catch((error) => setResolutionError(error.message ?? 'Approval failed due to a server error.'))
 
   const predictionBlocked = mode === 'prediction' && state.predicted_shortfall_mb > 1e-9
-  const hasSharedBaseline = Boolean(state.baseline.snapshot_id && state.baseline.plan_id)
-  const divergedFromBaseline = hasSharedBaseline && state.plan.plan_id !== state.baseline.plan_id
   return <><div className="mission-toolbar"><ModeTabs/><div className="clock-controls"><b>{mode === 'live' ? `LIVE SYSTEM TIME · ${localZone}` : 'INTERNAL SIMULATION TIME'}</b><span>{mode === 'live' ? localTime(state.sim_time) : new Date(state.sim_time).toISOString()}<AssumptionMark reason={mode === 'live' ? 'Live mode advances at 1× wall-clock time; displayed in this device’s time zone.' : 'Authoritative modeled time, not spacecraft telemetry.'}/></span>{mode !== 'live' && <><button disabled={predictionBlocked && state.paused} onClick={toggle}>{state.paused ? 'Start' : 'Pause'}</button>{['1x','10x','100x','1000x'].map((speed) => <button className={state.speed === speed ? 'active' : ''} onClick={() => setSpeed(speed)} key={speed}>{speed}</button>)}</>}{mode === 'live' && <span className="live-lock">REAL TIME · 1× · CONTINUES DURING APPROVAL</span>}</div></div>
-    {hasSharedBaseline && <section className="baseline-identity panel"><b>SHARED AUTHORITATIVE BASELINE · {divergedFromBaseline ? 'DIVERGED WITH RECORDED PLAN VERSION' : 'MATCHED'}</b><span>Snapshot {state.baseline.snapshot_id} · initial plan {state.baseline.plan_id} · current plan {state.plan.plan_id}</span><small>Weather ledger {state.baseline.weather_hash?.slice(0, 16)}… · created {state.baseline.created_at ? localTime(state.baseline.created_at) : 'unknown'}. Prediction and Live began with identical contacts, allocations, costs, passes, and normalized weather.</small></section>}
+    {/* baseline-identity section removed as requested */}
     {mode === 'prediction' && <section className="branch-banner panel"><b>TEST A WHAT-IF FROM THIS EXACT MOMENT</b><span>The Prediction timeline remains untouched. The Anomaly timeline receives this timestamp and delivered-volume snapshot.</span><button type="button" onClick={branchFromPrediction}>Branch here & inject anomaly</button></section>}
-    {mode === 'prediction' && <section className={`preflight-status panel ${state.preflight.feasible ? 'ready' : 'blocked'}`}><b>{state.preflight.feasible ? `FEASIBLE · ${state.preflight.ledger_allocated_mb.toFixed(2)} MB fully scheduled` : 'PREFLIGHT BLOCKED'}</b><span>Frozen forecast ledger · executable capacity {state.preflight.ledger_capacity_mb.toFixed(2)} MB · weather will not refresh during Prediction.</span></section>}
-    {mode === 'branch' && <AnomalyChat runtime={runtime} refresh={() => void refresh('branch')} resetToStart={() => { if (appliedDraft) void resetBranch(appliedDraft.orbit.epoch, 0) }}/>} {mode === 'live' && <section className="live-banner panel"><b>LIVE EXECUTION TIMELINE</b><span>Open-Meteo forecasts feed the capacity model; contact-close redistribution moves undelivered fragments to upcoming approved contacts. New stations remain approval-gated.</span></section>}
+    {mode === 'prediction' && <section className="preflight-status panel info"><b>PREDICTION MODE</b><span>The simulation runs using the initial weather forecast from the start time. Weather conditions are not updated in real-time during this predictive run.</span></section>}
+    {mode === 'branch' && <AnomalyChat runtime={runtime} refresh={() => void refresh('branch')} resetToStart={() => { if (appliedDraft) void resetBranch(appliedDraft.orbit.epoch, 0) }}/>} {mode === 'live' && <section className="live-banner panel"><b>REAL TIME SIMULATION</b><span>The simulation fetches and updates weather conditions in real-time. Capacity limits adjust dynamically based on live weather data.</span></section>}
     {mode === 'live' && (liveAddedStations.length > 0 || liveRemovedStations.length > 0) && <section className="live-plan-delta panel"><b>WHY THE LIVE ROUTE DIFFERS FROM PREDICTION</b><span>This comparison appeared when the independently calculated Live plan finished; it is not a route change caused by four seconds of weather fluctuation. Live starts at the current wall-clock instant and ranks its remaining passes using its own Open-Meteo capacity ledger. Prediction retains its earlier frozen ledger. The Anomaly timeline cannot affect either one.</span>{liveRouteReasons.map((reason) => <small key={reason}>{reason}</small>)}{liveRemovedReasons.map((reason) => <small key={reason}>{reason}</small>)}<small>Committed resource change versus Prediction: {liveCostDelta >= 0 ? '+' : ''}USD {liveCostDelta.toFixed(2)}{state.cost_assumed ? '*' : ''}.</small></section>}
     {mode === 'live' && state.shortfall_status === 'provisional_monitoring' && <section className="live-banner panel"><b>MONITORING PROVISIONAL RISK · {state.predicted_shortfall_mb.toFixed(2)} MB</b><span>The current contact is still executing. No approval is needed yet; the system will measure the final transfer and redistribute any confirmed loss when the contact closes.</span></section>}
     {state.resolution_required && <section className="approval-alert"><b>{state.finished ? `Mission reached its deadline with ${state.remaining_mb.toFixed(2)} MB unresolved.` : `${mode === 'prediction' ? 'Preflight' : 'Live forecast'} detects a ${state.predicted_shortfall_mb.toFixed(2)} MB shortfall; ${mode === 'prediction' ? 'Start is blocked' : 'the satellite continues in real time while a forward-only plan is prepared'}.`}</b><span>{resolution?.reason.summary ?? 'WatsonX is preparing a grounded explanation.'} {resolution?.reason.impact}</span><span>{resolution?.approval_prompt ?? 'A constraint change or specific forward plan requires your approval.'}</span>{resolutionError && <span className="resolution-error">Resolution calculation failed: {resolutionError}</span>}{!resolutionProposal && <button onClick={prepareResolution}>Calculate specific resolution</button>}{resolutionProposal && <div className="validated-resolution"><b>Validated recommendation from {localTime(state.sim_time)}</b><span>Shortfall: {resolutionProposal.predicted_shortfall_before_mb.toFixed(2)} → {resolutionProposal.predicted_shortfall_after_mb.toFixed(2)} MB · cost Δ {resolutionProposal.diff?.cost_delta ?? 'not applicable'}</span>{resolutionProposal.approval_reasons.map((reason) => <small key={reason}>{reason}</small>)}{resolutionProposal.alternatives.map((alternative) => <small key={alternative.kind}>{alternative.kind.replaceAll('_',' ')}: {String(alternative.calculated_value)}</small>)}<button disabled={resolutionProposal.predicted_shortfall_after_mb > 1e-9 || !resolutionProposal.diff} onClick={approveResolution}>Approve recommended plan</button>{resolutionProposal.predicted_shortfall_after_mb > 1e-9 && <small>No plan is presented as successful because the calculated shortfall remains non-zero.</small>}</div>}</section>}
     <section className="v2-dashboard"><section className="earth-panel panel"><GlobeView groundTrack={runtime.track} stations={state.stations} satellite={state.satellite} activeStationId={state.current_contact?.station_id} weather={mode === 'live' ? liveWeatherVisual : null} onStationSelect={setSelectedStation}/><div className="earth-caption"><span className="eyebrow">MODELED CUSTOM SATELLITE · {mode.toUpperCase()} TIMELINE</span><h2>{state.satellite.latitude_deg.toFixed(2)}°, {state.satellite.longitude_deg.toFixed(2)}°</h2><small><span className="legend-item active">active</span><span className="legend-item planned">planned</span><span className="legend-item candidate">candidate</span><span className="legend-item unused">unused</span></small></div>{state.current_contact && <div className="satellite-hud"><div className="hud-chip"><span>ALT</span><b>{state.satellite.altitude_km?.toFixed(0) ?? '—'} km</b></div><div className="hud-chip"><span>BAND</span><b>{state.current_contact.band}</b></div><div className="hud-chip"><span>LINK</span><b>{state.current_contact.rate_mbps.toFixed(1)} Mbps</b></div></div>}{selectedStation && <div className="station-popover"><button onClick={() => setSelectedStation(null)}>×</button><b>{selectedStation.name}</b><span>{selectedStation.classification} · {selectedStation.latitude_deg.toFixed(3)}°, {selectedStation.longitude_deg.toFixed(3)}°</span>{stationPasses.length ? stationPasses.map((item) => { const completed = Date.parse(item.end_at) <= Date.parse(state.sim_time); const actual = stationEvents.filter((event) => event.contact_id === item.contact_id).reduce((sum, event) => sum + (event.delivered_volume_mb ?? 0), 0); return <small key={item.pass_id}>{completed ? 'PAST' : 'PLANNED'} · {new Date(item.start_at).toLocaleString()} → {new Date(item.end_at).toLocaleTimeString()} · target {item.volume_mb.toFixed(2)} MB · transferred {actual.toFixed(2)} MB</small> }) : <small>No planned or past contact in this timeline.</small>}</div>}</section>
-      <aside className="target-panel panel"><span className="eyebrow">MISSION TARGET · HARD DEADLINE {localTime(state.deadline_at)}</span><h2>Downlink completion</h2><div className="current-link"><span>Live modeled rate</span><strong>{(state.current_contact?.rate_mbps ?? 0).toFixed(2)} Mbps</strong><small>{state.current_contact ? `${state.current_contact.station_name} · target ${state.current_contact.target_volume_mb.toFixed(2)} MB · actual ${state.current_contact.actual_volume_mb.toFixed(2)} MB` : 'No active ground-station contact'}</small></div><dl>{[['Required',`${state.required_mb.toFixed(2)} MB`],['Delivered',`${state.delivered_mb.toFixed(2)} MB`],['Remaining',`${state.remaining_mb.toFixed(2)} MB`],['Predicted final',`${state.predicted_final_mb.toFixed(2)} MB`],['Predicted shortfall',`${state.predicted_shortfall_mb.toFixed(2)} MB`],['Incurred cost',`USD ${Number(state.cost_used).toFixed(2)}${state.cost_assumed ? '*' : ''}`],['Committed cost',`USD ${Number(state.committed_cost).toFixed(2)}${state.cost_assumed ? '*' : ''}`],['Remaining budget',`USD ${Number(state.remaining_budget).toFixed(2)}`],['Maximum budget',`USD ${Number(state.maximum_budget).toFixed(2)}`],['Mission start',localTime(state.mission_start_at)],['Mission end',state.mission_end_at ? localTime(state.mission_end_at) : 'Not calculated']].map(([key,value]) => <div key={key}><dt>{key}<AssumptionMark reason={key.includes('cost') && state.cost_assumed ? 'At least one selected station uses deterministic simulated pricing because provider pricing was unavailable.' : 'Backend-calculated simulation value.'}/></dt><dd>{value}</dd></div>)}</dl>{mode === 'live' && <LiveWeather client={client} simulationTime={state.sim_time} activeStationId={state.current_contact?.station_id} onActiveWeather={setLiveWeatherVisual}/>}</aside>
+      <aside className="target-panel panel"><span className="eyebrow">MISSION TARGET · HARD DEADLINE {localTime(state.deadline_at)}</span><h2>Downlink completion</h2><div className="current-link"><span>Live modeled rate</span><strong>{(state.current_contact?.rate_mbps ?? 0).toFixed(2)} Mbps</strong><small>{state.current_contact ? `${state.current_contact.station_name} · target ${state.current_contact.target_volume_mb.toFixed(2)} MB · actual ${state.current_contact.actual_volume_mb.toFixed(2)} MB` : 'No active ground-station contact'}</small></div><dl>{[['Required',`${state.required_mb.toFixed(2)} MB`],['Delivered',`${state.delivered_mb.toFixed(2)} MB`],['Remaining',`${state.remaining_mb.toFixed(2)} MB`],['Predicted final',`${state.predicted_final_mb.toFixed(2)} MB`],['Predicted shortfall',`${state.predicted_shortfall_mb.toFixed(2)} MB`],['Incurred cost',`USD ${Number(state.cost_used).toFixed(2)}${state.cost_assumed ? '*' : ''}`],['Predicted cost',`USD ${Number(state.committed_cost).toFixed(2)}${state.cost_assumed ? '*' : ''}`],['Remaining budget',`USD ${Number(state.remaining_budget).toFixed(2)}`],['Maximum budget',`USD ${Number(state.maximum_budget).toFixed(2)}`],['Mission start',localTime(state.mission_start_at)],['Mission end',state.mission_end_at ? localTime(state.mission_end_at) : 'Not calculated']].map(([key,value]) => <div key={key}><dt>{key}<AssumptionMark reason={key.includes('cost') && state.cost_assumed ? 'At least one selected station uses deterministic simulated pricing because provider pricing was unavailable.' : 'Backend-calculated simulation value.'}/></dt><dd>{value}</dd></div>)}</dl>{mode === 'live' && <LiveWeather client={client} simulationTime={state.sim_time} activeStationId={state.current_contact?.station_id} onActiveWeather={setLiveWeatherVisual}/>}</aside>
       <section className="passes-panel panel"><div className="panel-heading"><div><span className="eyebrow">SEQUENTIAL APPROVED ROUTE · {localZone}</span><h2>Planner decisions · active/next contact first</h2></div><span>{approved.length} planned contacts</span></div><div className="pass-list route-list">{route.map((item, index) => { const completed = Boolean(item.completed_at) || Date.parse(item.end_at) <= Date.parse(state.sim_time); const active = state.current_contact?.contact_id === item.contact_id; const actual = (active ? state.current_contact?.actual_volume_mb ?? 0 : item.actual_volume_mb ?? 0); const delta = completed ? actual - item.volume_mb : 0; const deltaStr = completed ? (delta > 0.01 ? ` (Gain: +${delta.toFixed(1)} MB)` : delta < -0.01 ? ` (Loss: ${delta.toFixed(1)} MB)` : '') : ''; return <button className={`pass-row approved ${active ? 'active' : completed ? 'complete' : 'upcoming'}`} onClick={() => setSelectedStation(state.stations.find((station) => station.station_id === item.station_id) ?? null)} key={item.pass_id}><time>{index + 1} · {localTime(item.start_at)} → {localClock(item.end_at)}</time><b>{item.station_name}</b><span>planned {item.volume_mb.toFixed(1)} MB · actual {actual.toFixed(1)} MB{deltaStr}</span><i>{active ? 'IN PROGRESS' : completed ? 'COMPLETED' : 'UPCOMING'}</i></button> })}</div><div className="decision-detail"><span className="eyebrow">TRANSFER LOG SUMMARY</span><h3>{approved.filter((item) => Boolean(item.completed_at) || Date.parse(item.end_at) <= Date.parse(state.sim_time)).length} completed · {approved.filter((item) => Date.parse(item.start_at) > Date.parse(state.sim_time)).length} upcoming</h3><p>Planned {approved.reduce((sum, item) => sum + item.volume_mb, 0).toFixed(2)} MB · actually transferred {approved.reduce((sum, item) => sum + (item.actual_volume_mb ?? 0), 0).toFixed(2)} MB.</p></div></section>
       <aside className="event-panel panel"><div className="panel-heading"><div><span className="eyebrow">AUTHORITATIVE EVENT LOG · {mode === 'live' ? localZone : 'SIMULATION UTC'}</span><h2>Transfer lifecycle and algorithm decisions</h2></div></div>{reroutes.length > 0 && <section className="reroute-summary"><b>{mode === 'live' ? 'Real-time' : 'Deterministic'} redistribution decisions</b>{reroutes.slice().reverse().map((event) => <p key={`reroute-${event.event_id}`}><time>{localClock(event.sim_time)}</time><span>{event.source_station_name ?? 'Previous station'} under-delivered; {(event.delivered_volume_mb ?? 0).toFixed(3)} MB reassigned to {event.destination_station_name ?? 'the next approved station'} because it had spare future capacity before the deadline. {event.reroute_reason}</span></p>)}</section>}      <div className="event-list">{runtime.events.slice().reverse().map((event) => { const station = event.station_name ?? 'ground station'; const planned = event.planned_volume_mb == null ? '' : `; planned ${event.planned_volume_mb.toFixed(3)} MB`; const delta = event.planned_volume_mb != null ? (event.delivered_volume_mb ?? 0) - event.planned_volume_mb : 0; const deltaEl = event.planned_volume_mb != null ? (delta > 0.01 ? <span className="delta-gain"> +{delta.toFixed(2)} MB</span> : delta < -0.01 ? <span className="delta-loss"> {delta.toFixed(2)} MB</span> : null) : null; const transferLabel = event.event_type === 'contact_started' ? `Transfer started · ${station}${planned}` : event.event_type === 'contact_ended' ? `Transfer ended · ${station}${planned}; actual ${(event.delivered_volume_mb ?? 0).toFixed(3)} MB` : event.event_type === 'fragment_started' ? `Segment started · ${station}` : event.event_type === 'fragment_partial' ? `${(event.delivered_volume_mb ?? 0).toFixed(3)} MB via ${station}` : event.event_type === 'fragment_delivered' ? `Segment complete · ${(event.delivered_volume_mb ?? 0).toFixed(3)} MB via ${station}` : event.event_type === 'rate_updated' ? `Link rate → ${(event.rate_mbps ?? 0).toFixed(2)} Mbps · ${station}` : event.event_type === 'shortfall_predicted' ? `Shortfall: ${(event.predicted_shortfall_mb ?? 0).toFixed(3)} MB ungainful` : event.event_type === 'data_rerouted' ? `Rerouted ${(event.delivered_volume_mb ?? 0).toFixed(3)} MB from ${event.source_station_name ?? 'source'} → ${event.destination_station_name ?? 'destination'}. ${event.reroute_reason ?? ''}` : `${event.station_name ? `${event.station_name}: ` : ''}${event.description || event.event_type.replaceAll('_',' ')}`; return <div className="event-row" key={event.event_id}><time>{mode === 'live' ? localClock(event.sim_time) : new Date(event.sim_time).toISOString().slice(11,19)}</time><i/><p><strong>{event.event_type.replaceAll('_',' ')}</strong><span>{transferLabel}{deltaEl}</span></p></div> })}</div></aside>
     </section></>
@@ -404,15 +591,14 @@ export default function App() {
   return (
     <>
       <GlobalHeader path={path} appliedDraft={appliedDraft} onNavigate={(next) => navigate(next, setPath)} />
-      {path === '/' ? (
+      <div hidden={path !== '/'}>
         <Home onNavigate={(next) => navigate(next, setPath)} />
-      ) : (
-        <main className={setupVisible ? 'home setup-mode' : 'app-shell'}>
-          {setupVisible && <div className="home-noise" />}
-          <div hidden={!setupVisible}><Setup path={path} setPath={setPath}/></div>
-          <div hidden={setupVisible}><Mission/></div>
-        </main>
-      )}
+      </div>
+      <main hidden={path === '/'} className={setupVisible ? 'home setup-mode' : 'app-shell'}>
+        {setupVisible && <div className="home-noise" />}
+        <div hidden={!setupVisible}><Setup path={path} setPath={setPath}/></div>
+        <div hidden={setupVisible}><Mission/></div>
+      </main>
     </>
   )
 }

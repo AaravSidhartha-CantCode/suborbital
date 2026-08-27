@@ -11,6 +11,10 @@
 @import '@fontsource/syne/600.css';
 @import '@fontsource/syne/700.css';
 @import '@fontsource/syne/800.css';
+@import '@fontsource/outfit/400.css';
+@import '@fontsource/outfit/600.css';
+@import '@fontsource/space-mono/400.css';
+@import '@fontsource/space-mono/700.css';
 
 /* ─── DESIGN TOKENS ─────────────────────────────────────────────────────── */
 :root {
@@ -208,6 +212,8 @@ button.primary:hover:not(:disabled) {
   padding: 14px 20px;
   border-bottom: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.15);
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 /* ─── APP SHELL & TOPBAR ─────────────────────────────────────────────────── */

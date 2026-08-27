@@ -41,22 +41,22 @@ function SatelliteAsset({ position }: { position: THREE.Vector3 }) {
       {/* Central Bus */}
       <mesh>
         <cylinderGeometry args={[0.06, 0.06, 0.16, 12]} />
-        <meshPhysicalMaterial color="#e0e0e0" metalness={0.8} roughness={0.2} />
+        <meshBasicMaterial color="#e1ff00" wireframe />
       </mesh>
       {/* Solar Panel Left */}
       <mesh position={[-0.18, 0, 0]}>
         <boxGeometry args={[0.2, 0.01, 0.12]} />
-        <meshPhysicalMaterial color="#1b3b5a" metalness={0.9} roughness={0.1} emissive="#002244" />
+        <meshBasicMaterial color="#e1ff00" wireframe />
       </mesh>
       {/* Solar Panel Right */}
       <mesh position={[0.18, 0, 0]}>
         <boxGeometry args={[0.2, 0.01, 0.12]} />
-        <meshPhysicalMaterial color="#1b3b5a" metalness={0.9} roughness={0.1} emissive="#002244" />
+        <meshBasicMaterial color="#e1ff00" wireframe />
       </mesh>
       {/* Dish */}
       <mesh position={[0, -0.09, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <sphereGeometry args={[0.05, 16, 16, 0, Math.PI]} />
-        <meshPhysicalMaterial color="#ffffff" metalness={0.5} roughness={0.5} />
+        <meshBasicMaterial color="#e1ff00" wireframe />
       </mesh>
     </group>
   )
@@ -176,25 +176,16 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
   const activeLink = activeStation ? [point(activeStation.latitude_deg, activeStation.longitude_deg, 2.04), satellitePosition] : null
   return (
     <group rotation={[.08, -.45, -.12]}>
-      {/* Main Earth Sphere - Deep Space Look */}
+      {/* Invisible sphere to capture pointer events if needed, but not rendering a solid face */}
       <mesh>
-        <sphereGeometry args={[2, 72, 72]}/>
-        <meshPhysicalMaterial color="#041224" emissive="#020813" roughness={0.6} metalness={0.1} />
+        <sphereGeometry args={[2, 32, 32]}/>
+        <meshBasicMaterial visible={false} />
       </mesh>
-      {/* Outer atmospheric glow (Blue Halo) */}
-      <mesh>
-        <sphereGeometry args={[2.09, 64, 64]}/>
-        <meshPhysicalMaterial color="#3b82f6" transparent opacity={0.15} roughness={0} side={THREE.BackSide} />
-      </mesh>
-      {/* Thin inner atmosphere */}
-      <mesh>
-        <sphereGeometry args={[2.025, 64, 64]}/>
-        <meshPhysicalMaterial color="#60a5fa" transparent opacity={0.1} roughness={0} />
-      </mesh>
+      
       {/* Latitude/longitude grid - subtle but present */}
       <mesh>
         <sphereGeometry args={[2.002, 32, 32]}/>
-        <meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.06} />
+        <meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.08} />
       </mesh>
       
       {/* Country Outlines - Political Map */}
@@ -202,7 +193,7 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
       
       {/* Very thin elegant orbit line */}
       {track.length > 1 && (
-        <Line points={track} color="#60a5fa" lineWidth={0.7} transparent opacity={0.7} />
+        <Line points={track} color="#e1ff00" lineWidth={0.7} transparent opacity={0.7} />
       )}
       
       {/* Active Link */}
@@ -232,7 +223,6 @@ export function GlobeView({ groundTrack = [], stations = [], satellite, activeSt
   return (
     <div className="globe-canvas" aria-label="Interactive Earth, country outlines, stations, and modeled orbit visualization">
       <Canvas camera={{ position: [0, 0, 7.2], fov: 44 }}>
-        <color attach="background" args={['#060b12']}/>
         <ambientLight intensity={1.2}/>
         <directionalLight position={[6, 3, 6]} intensity={2.2} color="#c7e8ff"/>
         <directionalLight position={[-4, -2, -4]} intensity={0.6} color="#1e40af"/>
