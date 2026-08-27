@@ -45,7 +45,10 @@ export function StationCatalogPicker({ onBack, onContinue }: { onBack?: () => vo
           <div style={{ padding: '24px 32px 16px 32px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', background: 'rgba(0,0,0,0.2)', borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 14px' }}>
               <h3 className="island-title" style={{ margin: 0 }}>Available Stations</h3>
-              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', cursor: 'help' }} title="Real provider/place labels are retained, but starred properties are simulation assumptions.">[i]</span>
+              <div className="disclaimer-group">
+                <span className="disclaimer-icon">[i]</span>
+                <div className="disclaimer-tooltip">Real provider/place labels are retained, but starred properties are simulation assumptions.</div>
+              </div>
               <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontFamily: 'var(--font-mono)', marginLeft: 'auto' }}>
                 {draft.stations.length} SELECTED &middot; {displayed.length} OF {visible.length} SHOWN
               </span>
@@ -96,15 +99,15 @@ export function StationCatalogPicker({ onBack, onContinue }: { onBack?: () => vo
         </div>
         
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {onContinue && (
-            <button className="home-cta" disabled={draft.stations.length === 0} onClick={onContinue} style={{ width: '100%' }}>
-              CONTINUE TO MISSION
-              <div className="home-cta-target"><i/><i/></div>
-            </button>
-          )}
           {onBack && (
             <button className="home-cta secondary" onClick={onBack} style={{ width: '100%' }}>
               ← BACK TO COMMUNICATIONS
+              <div className="home-cta-target"><i/><i/></div>
+            </button>
+          )}
+          {onContinue && (
+            <button className="home-cta" disabled={draft.stations.length === 0} onClick={onContinue} style={{ width: '100%' }}>
+              CONTINUE TO MISSION
               <div className="home-cta-target"><i/><i/></div>
             </button>
           )}

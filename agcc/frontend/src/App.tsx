@@ -118,11 +118,23 @@ function Setup({ path, setPath }: { path: string; setPath: (path: string) => voi
       <section className="setup-shell glass-island-layout">
         <aside className="setup-progress glass-island-navigator">
           <span className="eyebrow">SCENARIO SETUP</span>
-          {setupRoutes.map((route, i) => (
-            <button className={route === path ? 'active' : i < index ? 'done' : ''} onClick={() => navigate(route, setPath)} key={route}>
-              <b>{i + 1}</b>{routeLabel[route]}
-            </button>
-          ))}
+          {setupRoutes.map((route, i) => {
+            const descriptions: Record<string, string> = {
+              '/setup/orbit': 'Configure trajectory',
+              '/setup/communications': 'Design telemetry link',
+              '/setup/stations': 'Select ground network',
+              '/setup/mission': 'Finalize constraints',
+            };
+            return (
+              <button className={route === path ? 'active' : i < index ? 'done' : ''} onClick={() => navigate(route, setPath)} key={route}>
+                <b>{i + 1}</b>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                  <span>{routeLabel[route]}</span>
+                  {route === path && <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{descriptions[route]}</span>}
+                </div>
+              </button>
+            )
+          })}
         </aside>
         
         <section className="setup-stage">
@@ -137,7 +149,7 @@ function Setup({ path, setPath }: { path: string; setPath: (path: string) => voi
                 <OrbitManipulator draft={draft} updateOrbit={updateOrbit}/>
               </div>
               <div className="setup-form-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div className="glass-island-form" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div className="glass-island-form" style={{ display: 'flex', flexDirection: 'column' }}>
                   <h3 className="island-title">Orbital Parameters</h3>
                   <PresetSelector value={draft.orbit.inclination_deg} onChange={(val) => updateOrbit({ inclination_deg: val })} />
                   <div className="field-grid">
@@ -147,10 +159,16 @@ function Setup({ path, setPath }: { path: string; setPath: (path: string) => voi
                     <ScrubberInput label="Phase (degrees)" min={0} max={359.999} value={draft.orbit.phase_deg} onChange={(val) => updateOrbit({ phase_deg: val })} />
                   </div>
                 </div>
-                <button className="home-cta" onClick={() => navigate('/setup/communications', setPath)} style={{ width: '100%', marginTop: 'auto' }}>
-                  CONTINUE TO COMMUNICATIONS
-                  <div className="home-cta-target"><i/><i/></div>
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: 'auto' }}>
+                  <button className="home-cta secondary" onClick={() => navigate('/', setPath)} style={{ width: '100%' }}>
+                    ← BACK TO HOME
+                    <div className="home-cta-target"><i/><i/></div>
+                  </button>
+                  <button className="home-cta" onClick={() => navigate('/setup/communications', setPath)} style={{ width: '100%' }}>
+                    CONTINUE TO COMMUNICATIONS
+                    <div className="home-cta-target"><i/><i/></div>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -180,7 +198,7 @@ function Setup({ path, setPath }: { path: string; setPath: (path: string) => voi
                 <div className="glass-island-form" style={{ flex: 1, justifyContent: 'center' }}>
                   <h3 className="island-title">Signal & Protocol</h3>
                   <div className="field-grid">
-                    <Field label="Polarization (required)">
+                    <Field label="Polarization">
                       <select value={draft.polarization} required onChange={(event) => updateDraft({ polarization: event.target.value as Draft['polarization'] })}>
                         <option value="horizontal">Horizontal</option>
                         <option value="vertical">Vertical</option>
@@ -192,9 +210,9 @@ function Setup({ path, setPath }: { path: string; setPath: (path: string) => voi
                     </Field>
                     <div className="glass-value-box">
                       <div className="glass-value-text">
-                        {(draft.rate * draft.protocolEfficiency).toFixed(1)} Mbps
+                        {(draft.rate * draft.protocolEfficiency).toFixed(1)}
                       </div>
-                      <span className="right-label">TELEMETRY OUTPUT</span>
+                      <span className="right-label">TELEMETRY OUTPUT (MBPS)</span>
                     </div>
                   </div>
                 </div>
@@ -206,12 +224,12 @@ function Setup({ path, setPath }: { path: string; setPath: (path: string) => voi
                 </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: 'auto' }}>
-                  <button className="home-cta" disabled={errors.some(e => e.includes('-band') || e.includes('Rate'))} onClick={() => navigate('/setup/stations', setPath)} style={{ width: '100%' }}>
-                    CONTINUE TO STATIONS
-                    <div className="home-cta-target"><i/><i/></div>
-                  </button>
                   <button className="home-cta secondary" onClick={() => navigate('/setup/orbit', setPath)} style={{ width: '100%' }}>
                     ← BACK TO ORBIT
+                    <div className="home-cta-target"><i/><i/></div>
+                  </button>
+                  <button className="home-cta" disabled={errors.some(e => e.includes('-band') || e.includes('Rate'))} onClick={() => navigate('/setup/stations', setPath)} style={{ width: '100%' }}>
+                    CONTINUE TO STATIONS
                     <div className="home-cta-target"><i/><i/></div>
                   </button>
                 </div>
@@ -282,7 +300,7 @@ function Setup({ path, setPath }: { path: string; setPath: (path: string) => voi
                     <div className="home-cta-target"><i/><i/></div>
                   </button>
                   <button className="home-cta" disabled={errors.length > 0} onClick={() => finish()} style={{ width: '100%' }}>
-                    APPLY & CREATE TIMELINES
+                    FINISH SETUP & CONTINUE
                     <div className="home-cta-target"><i/><i/></div>
                   </button>
                 </div>
