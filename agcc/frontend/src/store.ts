@@ -8,7 +8,20 @@ export type Draft = { orbit: OrbitDraft; band: string; frequency: number; rate: 
 const now = new Date()
 const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
 const initialDraft: Draft = { orbit: { altitude_km: 550, inclination_deg: 53, raan_deg: 20, phase_deg: 10, epoch: now.toISOString() }, band: 'X', frequency: 9.6, rate: 100, protocolEfficiency: .9, polarization: 'circular', stations: ['station_demo_southafrica'], required: 3000, deadline: tomorrow.toISOString(), budget: 500, preference: 'fastest' }
-const restored = (): Draft => { try { const saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '') as Partial<Draft>; return { ...initialDraft, ...saved, orbit: { ...initialDraft.orbit, ...saved.orbit } } } catch { return initialDraft } }
+const restored = (): Draft => { 
+  try { 
+    const saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '') as Partial<Draft>; 
+    const draft = { ...initialDraft, ...saved, orbit: { ...initialDraft.orbit, ...saved.orbit } };
+    if (new Date(draft.deadline).getTime() <= Date.now()) {
+      const freshNow = new Date();
+      draft.orbit.epoch = freshNow.toISOString();
+      draft.deadline = new Date(freshNow.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    }
+    return draft;
+  } catch { 
+    return initialDraft;
+  } 
+}
 const save = (draft: Draft) => sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
 
 type Store = { draft: Draft; appliedDraft: Draft | null; revision: number; mode: MissionMode; prediction: LegacyModeState; branch: LegacyModeState; setMode: (m: MissionMode) => void; updateDraft: (p: Partial<Draft>) => void; updateOrbit: (p: Partial<OrbitDraft>) => void; applyDraft: () => void }

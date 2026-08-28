@@ -8,7 +8,7 @@ type WeatherSnapshot = {
   relative_humidity_pct: number; cloud_cover_pct: number; wind_speed_mps: number
   source_quality: string; provenance: { source_name: string; fetched_at: string }
 }
-export type WeatherVisual = { kind: 'clear' | 'cloud' | 'rain'; intensity: number }
+export type WeatherVisual = { kind: 'clear' | 'cloud' | 'rain'; intensity: number; precipitation_mm_per_hr: number; cloud_cover_pct: number }
 
 export function LiveWeather({ client = new AgccClient(), simulationTime, activeStationId, onActiveWeather }: { client?: AgccClient; simulationTime?: string; activeStationId?: string; onActiveWeather?: (weather: WeatherVisual | null) => void }) {
   const [data, setData] = useState<WeatherSnapshot[]>([])
@@ -27,10 +27,10 @@ export function LiveWeather({ client = new AgccClient(), simulationTime, activeS
     const active = plannedWeather.find((item) => item.station_id === activeStationId)
     if (!active) return onActiveWeather?.(null)
     onActiveWeather?.(active.precipitation_mm_per_hr > 0.05
-      ? { kind: 'rain', intensity: Math.min(1, active.precipitation_mm_per_hr / 8) }
+      ? { kind: 'rain', intensity: Math.min(1, active.precipitation_mm_per_hr / 8), precipitation_mm_per_hr: active.precipitation_mm_per_hr, cloud_cover_pct: active.cloud_cover_pct }
       : active.cloud_cover_pct > 35
-        ? { kind: 'cloud', intensity: active.cloud_cover_pct / 100 }
-        : { kind: 'clear', intensity: 1 })
+        ? { kind: 'cloud', intensity: active.cloud_cover_pct / 100, precipitation_mm_per_hr: active.precipitation_mm_per_hr, cloud_cover_pct: active.cloud_cover_pct }
+        : { kind: 'clear', intensity: 1, precipitation_mm_per_hr: active.precipitation_mm_per_hr, cloud_cover_pct: active.cloud_cover_pct })
   }, [activeStationId, plannedWeather, onActiveWeather])
   useEffect(() => {
     const start = simulationTime ? new Date(simulationTime) : new Date()

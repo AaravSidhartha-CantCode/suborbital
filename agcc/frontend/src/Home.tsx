@@ -53,11 +53,10 @@ export function Home({ onNavigate }: HomeProps) {
 
 
       <main className="home-hero">
-        <div className="home-hero-copy">
-          <div className="home-kicker"><i />AGCC // ORBITAL SYSTEMS</div>
-          <h1 style={{ fontSize: 'clamp(42px, 5.5vw, 84px)' }}>VIEW THE MISSION LIVE.<br /><b>BEFORE IT REACHES ORBIT.</b></h1>
+        <div className="home-hero-copy" style={{ marginTop: '-15px' }}>
+          <h1 style={{ fontSize: 'clamp(42px, 5.5vw, 84px)' }}>VIEW THE MISSION LIVE,<br /><b>BEFORE IT REACHES ORBIT.</b></h1>
           <p>Precompute precise orbital contact windows. Distribute payloads efficiently across global ground stations, and dynamically reroute telemetry when real-world conditions shift.</p>
-          <button className="home-cta" onClick={() => onNavigate('/setup/orbit')}>
+          <button className="home-cta" style={{ width: '280px', transform: 'scale(1.15)', transformOrigin: 'left center' }} onClick={() => onNavigate('/setup/orbit')}>
             <span>INITIALIZE SETUP</span><span className="home-cta-target" aria-hidden="true"><i /><i /></span>
           </button>
         </div>

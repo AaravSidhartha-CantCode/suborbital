@@ -127,6 +127,19 @@
   /* Center the navigation vertically */
 }
 
+.glass-island-navigator.horizontal {
+  flex: 0 0 auto;
+  flex-direction: row;
+  justify-content: flex-start;
+  padding: 16px;
+  width: 100%;
+  gap: 16px;
+}
+
+.glass-island-navigator.horizontal button {
+  flex: 1;
+}
+
 .setup-stage {
   flex: 1;
   display: flex;
@@ -347,7 +360,6 @@
 
 .glass-value-box {
   position: relative;
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;

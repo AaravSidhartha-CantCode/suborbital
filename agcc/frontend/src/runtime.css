@@ -21,9 +21,9 @@
   flex-shrink: 0;
 }
 
-.earth-caption .legend-item.active::before   { background: #22d3ee; box-shadow: 0 0 5px #22d3ee; }
-.earth-caption .legend-item.planned::before  { background: #60a5fa; box-shadow: 0 0 5px #60a5fa; }
-.earth-caption .legend-item.candidate::before { background: #a78bfa; }
+.earth-caption .legend-item.active::before   { background: #e1ff00; box-shadow: 0 0 5px #e1ff00; }
+.earth-caption .legend-item.planned::before  { background: #22d3ee; box-shadow: 0 0 5px #22d3ee; }
+.earth-caption .legend-item.candidate::before { background: #a855f7; }
 .earth-caption .legend-item.unused::before   { background: #475569; }
 
 /* Source grid (live sources page) */

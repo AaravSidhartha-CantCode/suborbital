@@ -1,9 +1,20 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
 
 import { EarthSystem } from './HomeEarth';
+
+export function DeepSpaceBackground() {
+  return (
+    <div className="deep-space-bg">
+      <div className="space-blob space-blob-1"></div>
+      <div className="space-blob space-blob-2"></div>
+      <div className="space-blob space-blob-3"></div>
+      <div className="home-noise" style={{ display: 'block' }}></div>
+    </div>
+  )
+}
 
 function DriftingEarth() {
   const group = useRef<THREE.Group>(null);
@@ -102,29 +113,26 @@ export function ScrubberInput({ value, onChange, min, max, label }: { value: num
 
 export function PresetSelector({ value, onChange }: { value: number, onChange: (val: number) => void }) {
   const options = [
-    { label: 'Mid-inclination', val: 53 },
-    { label: 'Equatorial', val: 0 },
-    { label: 'Polar', val: 90 },
-    { label: 'Custom', val: -1 }
+    { label: 'Mid-inclination', value: 53 },
+    { label: 'Equatorial', value: 0 },
+    { label: 'Polar', value: 90 },
+    { label: 'Custom', value: -1 }
   ];
 
-  const currentValOpt = options.find(o => o.val === value);
+  const currentValOpt = options.find(o => o.value === value);
   const displayValue = currentValOpt ? value : -1;
 
   return (
     <div className="glass-value-box">
-      <select 
-        value={displayValue} 
-        onChange={e => {
-          if (Number(e.target.value) !== -1) {
-            onChange(Number(e.target.value));
+      <GlassSelect 
+        value={displayValue}
+        options={options}
+        onChange={(val) => {
+          if (Number(val) !== -1) {
+            onChange(Number(val));
           }
         }}
-      >
-        {options.map(opt => (
-          <option key={opt.val} value={opt.val}>{opt.label}</option>
-        ))}
-      </select>
+      />
       <span className="right-label">Presets</span>
     </div>
   );
@@ -291,6 +299,87 @@ export function GroundStationWireframe() {
         <GroundStationModel />
         <SmallHoveringSatellite />
       </Canvas>
+    </div>
+  );
+}
+
+export function GlassSelect({ value, onChange, options, style }: { value: string | number, onChange: (val: string) => void, options: {value: string | number, label: string}[], style?: React.CSSProperties }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (ref.current) {
+      const parent = ref.current.closest('.glass-value-box');
+      if (parent) {
+        (parent as HTMLElement).style.zIndex = open ? '100' : '';
+      }
+    }
+  }, [open]);
+
+  const selectedOption = options.find(o => String(o.value) === String(value));
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%', ...style }}>
+      <div 
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer',
+          padding: '12px 0', textTransform: 'uppercase', fontFamily: 'var(--font-mono)',
+          color: '#fff', width: '100%'
+        }}
+      >
+        <span>{selectedOption ? selectedOption.label : 'Select...'}</span>
+        <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>?</span>
+      </div>
+      
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0,
+          background: 'rgba(10, 15, 25, 0.95)',
+          border: '1px solid rgba(225, 255, 0, 0.2)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: '8px',
+          boxShadow: '0 8px 16px rgba(0,0,0,0.5)',
+          zIndex: 1000,
+          maxHeight: '250px',
+          overflowY: 'auto',
+          marginTop: '4px'
+        }}>
+          {options.map(opt => (
+            <div 
+              key={String(opt.value)}
+              onClick={() => { onChange(String(opt.value)); setOpen(false); }}
+              style={{
+                padding: '10px 14px', cursor: 'pointer',
+                fontFamily: 'var(--font-mono)', fontSize: '12px',
+                color: String(value) === String(opt.value) ? '#e1ff00' : 'rgba(255,255,255,0.7)',
+                textTransform: 'uppercase',
+                transition: 'background 0.2s, color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(225, 255, 0, 0.1)';
+                e.currentTarget.style.color = '#fff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = String(value) === String(opt.value) ? '#e1ff00' : 'rgba(255,255,255,0.7)';
+              }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

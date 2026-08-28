@@ -19,7 +19,7 @@ const point = (latitudeDeg: number, longitudeDeg: number, radius: number) => {
   return new THREE.Vector3(Math.cos(latitude) * Math.cos(longitude), Math.sin(latitude), -Math.cos(latitude) * Math.sin(longitude)).multiplyScalar(radius)
 }
 
-const markerColor: Record<string, string> = { anomaly: '#f87171', active: '#e1ff00', approved: '#22d3ee', candidate: '#a855f7', unused: '#475569', unselected: '#2d3748' }
+const markerColor: Record<string, string> = { anomaly: '#f87171', active: '#22d3ee', approved: '#60a5fa', candidate: '#a78bfa', unused: '#475569', unselected: '#2d3748' }
 
 function countryLines(): THREE.Vector3[][] {
   const object = (countries as { objects: { countries: unknown } }).objects.countries
@@ -53,7 +53,7 @@ function Clouds() {
 
 function SatelliteAsset({ position }: { position: THREE.Vector3 }) {
   return (
-    <group position={position} scale={0.75}>
+    <group position={position} scale={1.5}>
       {/* Central Bus */}
       <mesh>
         <cylinderGeometry args={[0.06, 0.06, 0.16, 12]} />
@@ -186,40 +186,7 @@ function OrbitInteraction({ track, orbitConfig, onOrbitChange, satellitePosition
 function Earth({ groundTrack, stations, satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, setDragging }: { groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void }) {
   const outlines = useMemo(countryLines, [])
   const orbitRadius = satellite ? 2 + Math.min(1.15, satellite.altitude_km / 1750) : 2.025
-  const fullTrack = groundTrack.map((item) => point(item.latitude_deg, item.longitude_deg, orbitRadius))
-  
-  let track = fullTrack
-  const lastIdxRef = useRef(0)
-  if (satellite && fullTrack.length > 0) {
-    const sPos = point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius)
-    let closestIdx = lastIdxRef.current
-    if (closestIdx >= fullTrack.length) closestIdx = 0;
-    
-    let minD = Infinity
-    const searchEnd = Math.min(fullTrack.length, closestIdx + 60)
-    for (let i = closestIdx; i < searchEnd; i++) {
-      const d = fullTrack[i].distanceToSquared(sPos)
-      if (d < minD) {
-        minD = d
-        closestIdx = i
-      }
-    }
-    
-    if (minD > 1.0) {
-      minD = Infinity
-      fullTrack.forEach((p, i) => {
-        const d = p.distanceToSquared(sPos)
-        if (d < minD) {
-          minD = d
-          closestIdx = i
-        }
-      })
-    }
-    
-    lastIdxRef.current = closestIdx
-    // Render only the future portion of the orbit starting from the satellite
-    track = fullTrack.slice(closestIdx)
-  }
+  const track = groundTrack.map((item) => point(item.latitude_deg, item.longitude_deg, orbitRadius))
   const satellitePosition = satellite ? point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius) : track[0] ?? new THREE.Vector3(2.4, 0, 0)
   const activeStation = stations.find((station) => station.station_id === activeStationId)
   const activeLink = activeStation ? [point(activeStation.latitude_deg, activeStation.longitude_deg, 2.04), satellitePosition] : null
@@ -229,7 +196,7 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
       {/* Solid ocean/background for the political map */}
       <mesh>
         <sphereGeometry args={[2, 64, 64]}/>
-        <meshStandardMaterial map={texture} color="#9ca3af" roughness={0.8} metalness={0.1} />
+        <meshStandardMaterial map={texture} color="#ffffff" roughness={0.8} metalness={0.1} />
       </mesh>
       
       {/* Soft blurred atmospheric glow (Fresnel shader) */}
@@ -264,20 +231,9 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
       {outlines.map((line, index) => <Line key={index} points={line} color="#60a5fa" lineWidth={1.2} transparent opacity={0.8}/>)}
       
       {/* Very thin elegant orbit line */}
-      {track.length > 1 && Array.from({ length: 15 }).map((_, i) => {
-        const fadeLength = Math.min(track.length, 150);
-        const segLen = Math.ceil(fadeLength / 15);
-        const start = i * segLen;
-        const end = Math.min(track.length, start + segLen + 1);
-        if (start >= fadeLength || start >= track.length - 1) return null;
-        
-        const segment = track.slice(start, end);
-        const opacity = Math.max(0, 0.8 * (1 - Math.pow(i / 15, 1.2)));
-        
-        return segment.length > 1 ? (
-          <Line key={i} points={segment} color="#e1ff00" lineWidth={0.7} transparent opacity={opacity} />
-        ) : null;
-      })}
+      {track.length > 1 && (
+        <Line points={track} color="#e1ff00" lineWidth={0.7} transparent opacity={0.7} />
+      )}
       
       {/* Active Link */}
       {activeLink && <Line points={activeLink} color="#22d3ee" lineWidth={1.8} dashed dashSize={.06} gapSize={.04} transparent opacity={.85}/>}
@@ -286,11 +242,10 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
       {stations.map((station) => { 
         const emphasized = station.classification === 'active' || station.classification === 'approved'; 
         const isActive = station.station_id === activeStationId;
-        const color = markerColor[isActive ? 'active' : station.classification] ?? markerColor.unselected;
         return (
           <mesh position={point(station.latitude_deg, station.longitude_deg, 2.035)} key={station.station_id} onClick={(event) => { event.stopPropagation(); onStationSelect?.(station) }}>
-            <sphereGeometry args={[isActive ? .09 : emphasized ? .06 : .03, 16, 16]}/>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={isActive ? 1.5 : emphasized ? 0.8 : 0.2} toneMapped={false} />
+            <sphereGeometry args={[isActive ? .06 : emphasized ? .04 : .02, 16, 16]}/>
+            <meshBasicMaterial color={markerColor[isActive ? 'active' : station.classification] ?? markerColor.unselected}/>
           </mesh>
         )
       })}
@@ -302,51 +257,10 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
   )
 }
 
-function CameraTracker({ tracking, satelliteWorldPos, controlsRef }: { tracking: boolean, satelliteWorldPos: THREE.Vector3 | null, controlsRef: any }) {
-  useFrame(({ camera, size }) => {
-    // ALWAYS apply view offset so the aspect ratio and right-alignment are preserved even during manual dragging/resizing
-    if ((camera as THREE.PerspectiveCamera).setViewOffset) {
-      ;(camera as THREE.PerspectiveCamera).setViewOffset(size.width, size.height, -80, 0, size.width, size.height)
-    }
-
-    if (tracking && satelliteWorldPos) {
-      const S = satelliteWorldPos.clone()
-      const S_norm = S.clone().normalize()
-      
-      let up = new THREE.Vector3(0, 1, 0)
-      if (Math.abs(S_norm.y) > 0.98) {
-        up.set(1, 0, 0)
-      }
-      
-      const right = new THREE.Vector3().crossVectors(up, S).normalize()
-      
-      const targetC = S_norm.multiplyScalar(4.2)
-      
-      camera.position.lerp(targetC, 0.05)
-      camera.lookAt(0, 0, 0)
-      
-      if (controlsRef.current) {
-        controlsRef.current.target.set(0, 0, 0)
-        controlsRef.current.update()
-      }
-    }
-  })
-  return null
-}
-
-export function GlobeView({ groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void }) {
+export function SetupGlobe({ groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void }) {
   const [dragging, setDragging] = useState(false)
-  const [tracking, setTracking] = useState(true)
-  const controlsRef = useRef<any>(null)
-
-  const orbitRadius = satellite ? 2 + Math.min(1.15, satellite.altitude_km / 1750) : 2.025
-  const satellitePosition = satellite ? point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius) : new THREE.Vector3(2.4, 0, 0)
-  const earthEuler = new THREE.Euler(0.08, -0.45, -0.12)
-  const satelliteWorldPos = satellitePosition.clone().applyEuler(earthEuler)
-
   return (
-    <div className="globe-canvas" aria-label="Interactive Earth, country outlines, stations, and modeled orbit visualization"
-         onPointerDown={() => setTracking(false)} onWheel={() => setTracking(false)}>
+    <div className="globe-canvas" aria-label="Interactive Earth, country outlines, stations, and modeled orbit visualization">
       <Canvas camera={{ position: [0, 0, 7.2], fov: 44 }}>
         <ambientLight intensity={1.2}/>
         <directionalLight position={[6, 3, 6]} intensity={2.2} color="#c7e8ff"/>
@@ -355,17 +269,9 @@ export function GlobeView({ groundTrack = [], stations = [], satellite, activeSt
         <Stars radius={100} depth={50} count={3500} factor={3} fade speed={.03}/>
         <Suspense fallback={null}>
           <Earth groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} weather={weather} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} />
-          <CameraTracker tracking={tracking} satelliteWorldPos={satelliteWorldPos} controlsRef={controlsRef} />
         </Suspense>
-        <OrbitControls ref={controlsRef} enablePan={false} enableRotate={!dragging && !tracking} enableZoom={!dragging && !tracking} minDistance={3.5} maxDistance={10}/>
+        <OrbitControls enablePan={false} enableRotate={!dragging} enableZoom={!dragging} minDistance={5.4} maxDistance={10}/>
       </Canvas>
-      <button 
-        className={`tracking-btn ${tracking ? 'active' : ''}`} 
-        onClick={(e) => { e.stopPropagation(); setTracking(true); }}
-        style={{ left: '24px', transform: 'none' }}
-      >
-        DEFAULT VIEW
-      </button>
     </div>
   )
 }

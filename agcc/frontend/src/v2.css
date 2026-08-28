@@ -811,54 +811,7 @@
   font: 400 10px var(--font-mono);
 }
 
-/* ─── STATION CARD GRID ───────────────────────────────────────────────────── */
-.station-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 10px;
-}
 
-.station-card-grid label {
-  position: relative;
-  display: grid;
-  gap: 6px;
-  min-height: 110px;
-  padding: 14px 14px 14px 38px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-}
-
-.station-card-grid label:hover {
-  border-color: var(--border-medium);
-  background: var(--bg-hover);
-}
-
-.station-card-grid label.selected {
-  border-color: var(--border-accent);
-  background: var(--blue-subtle);
-  box-shadow: 0 0 16px var(--blue-glow);
-}
-
-.station-card-grid label.selected b {
-  color: #e1ff00;
-}
-
-.station-card-grid label.incompatible { opacity: 0.35; cursor: not-allowed; }
-
-.station-card-grid input {
-  position: absolute;
-  left: 12px;
-  top: 14px;
-  accent-color: var(--blue);
-}
-
-.station-card-grid b    { font: 600 12px var(--font-sans); color: var(--text-primary); }
-.station-card-grid span { color: var(--text-muted); font: 400 9px var(--font-mono); }
-.station-card-grid small { color: var(--text-muted); font: 400 9px var(--font-mono); }
-.station-card-grid em   { color: var(--red); font: 400 9px var(--font-mono); font-style: normal; }
 
 .catalog-fold {
   display: block;
@@ -1044,7 +997,390 @@
 .interactive-orbit { touch-action: none; cursor: grab; }
 .interactive-orbit:active { cursor: grabbing; }
 
-/* ─── MEDIA QUERIES ──────────────────────────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* GLASS DESIGN SYSTEM v3 — ALERTS, NOTIFICATIONS, MODALS, POPOVERS          */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── NOTIFICATION SHELF ─────────────────────────────────────────────────── */
+/* Container between ModeTabs and main dashboard                               */
+.notification-shelf {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  padding-right: 4px;
+}
+
+.notification-shelf:empty { display: none; margin: 0; }
+
+/* ─── NOTIFICATION ISLANDS (base for B / C / D alerts) ──────────────────── */
+.notif-island {
+  display: grid;
+  gap: 6px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Amber — resolution/shortfall (approval-alert) */
+.notif-island.notif-amber {
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  background: rgba(251, 191, 36, 0.06);
+}
+.notif-island.notif-amber .notif-title { color: #fde68a; }
+.notif-island.notif-amber .notif-body  { color: rgba(253, 230, 138, 0.75); }
+.notif-island.notif-amber button {
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.10);
+  color: #fef3c7;
+  font-size: 11px;
+  padding: 7px 14px;
+  width: max-content;
+}
+.notif-island.notif-amber button:hover  { background: rgba(251, 191, 36, 0.18); }
+.notif-island.notif-amber button:disabled { opacity: 0.4; cursor: default; }
+
+/* Cyan — live monitoring */
+.notif-island.notif-cyan {
+  border: 1px solid var(--border-cyan);
+  background: var(--cyan-subtle);
+}
+.notif-island.notif-cyan .notif-title { color: var(--cyan); }
+.notif-island.notif-cyan .notif-body  { color: rgba(255,255,255,0.6); }
+
+/* Blue — route delta */
+.notif-island.notif-blue {
+  border: 1px solid var(--border-accent);
+  background: var(--blue-subtle);
+}
+.notif-island.notif-blue .notif-title { color: var(--blue-bright); }
+.notif-island.notif-blue .notif-body  { color: rgba(255,255,255,0.6); }
+
+.notif-title {
+  font: 600 12px var(--font-sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.notif-body {
+  font: 400 11px var(--font-sans);
+  line-height: 1.6;
+}
+.notif-island small {
+  display: block;
+  font: 400 10px var(--font-mono);
+  color: rgba(255,255,255,0.45);
+  line-height: 1.5;
+}
+
+/* ─── VALIDATED RESOLUTION (inside amber notif-island) ───────────────────── */
+.validated-resolution {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(251, 191, 36, 0.15);
+  background: rgba(0,0,0,0.2);
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
+}
+.validated-resolution b    { font: 600 11px var(--font-sans); color: #fde68a; }
+.validated-resolution span { font: 400 10px var(--font-mono); color: rgba(253,230,138,0.65); display: block; }
+.validated-resolution small { font: 400 9px var(--font-mono); color: rgba(255,255,255,0.4); }
+.resolution-error { font: 400 10px var(--font-mono); color: #fca5a5; }
+
+/* ─── STATION POPOVER (on globe) ─────────────────────────────────────────── */
+.station-popover {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  gap: 6px;
+  width: min(320px, calc(100% - 36px));
+  padding: 16px;
+  border: 1px solid rgba(225, 255, 0, 0.2);
+  background: rgba(5, 10, 20, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.8), 0 0 24px rgba(225,255,0,0.06);
+  z-index: 10;
+}
+
+.station-popover > button {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.5);
+  font-size: 12px;
+  padding: 2px 7px;
+  width: auto;
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.station-popover > button:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+.station-popover > b {
+  font: 600 12px var(--font-sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #e1ff00;
+  padding-right: 28px;
+}
+
+/* satellite popover gets cyan accent */
+.station-popover.satellite-popover > b { color: var(--cyan); }
+
+.station-popover > span {
+  color: rgba(255,255,255,0.55);
+  font: 400 10px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.station-popover > small {
+  color: rgba(255,255,255,0.7);
+  font: 400 10px var(--font-mono);
+  border-top: 1px solid rgba(255,255,255,0.07);
+  padding-top: 8px;
+  margin-top: 2px;
+  display: block;
+  line-height: 1.55;
+}
+
+/* ─── MODAL OVERLAY (Replan Rejected) ────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.modal {
+  width: min(580px, 100%);
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  background: rgba(8, 5, 20, 0.96);
+  padding: 32px;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.9), 0 0 60px rgba(167,139,250,0.08);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(32px);
+}
+
+.modal .eyebrow { color: #a78bfa; letter-spacing: 0.14em; font-size: 10px; }
+.modal h2 { font-size: 22px; margin: 4px 0 0; font-weight: 300; letter-spacing: -0.01em; }
+.modal p  { color: rgba(255,255,255,0.6); font-size: 12px; line-height: 1.65; margin: 0; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.modal-actions button {
+  padding: 9px 20px;
+  font-size: 11px;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  background: rgba(167, 139, 250, 0.08);
+  color: #e9d5ff;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  letter-spacing: 0.04em;
+}
+.modal-actions button:hover { background: rgba(167, 139, 250, 0.18); }
+.modal-actions button:first-child {
+  border-color: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.6);
+}
+.modal-actions button:first-child:hover { background: rgba(255,255,255,0.09); }
+
+/* ─── ANOMALY WORKBENCH (glass island) ───────────────────────────────────── */
+.anomaly-workbench {
+  padding: 0;
+  background: rgba(10, 15, 30, 0.55);
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(20px);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.watson-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.12);
+  background: rgba(167, 139, 250, 0.04);
+}
+
+.watson-heading h2 {
+  font-size: 16px;
+  font-weight: 400;
+  margin: 4px 0 0;
+  letter-spacing: 0.02em;
+}
+
+.watson-heading small { color: rgba(255,255,255,0.4); font-size: 10px; font-family: var(--font-mono); }
+
+.anomaly-chat { margin: 0; padding: 0 20px 12px; border-top: 0; }
+
+.anomaly-workbench .chat-history {
+  margin: 0;
+  border-left: 0;
+  border-right: 0;
+  border-radius: 0;
+  border-top: 1px solid rgba(167,139,250,0.1);
+  border-bottom: 1px solid rgba(167,139,250,0.1);
+  background: rgba(0,0,0,0.25);
+  padding: 12px 20px;
+}
+
+.anomaly-workbench .workflow-message {
+  padding: 4px 20px 10px;
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.35);
+  font-family: var(--font-mono);
+}
+
+.anomaly-workbench .anomaly-chat { padding: 12px 20px; }
+
+/* ─── PROPOSAL CARDS (inside anomaly workbench) ──────────────────────────── */
+.anomaly-workbench .proposal-card {
+  margin: 0 20px 12px;
+  border-color: rgba(167, 139, 250, 0.2);
+  background: rgba(167, 139, 250, 0.06);
+}
+.anomaly-workbench .proposal-card b { color: #c4b5fd; }
+.anomaly-workbench .proposal-card button {
+  border-color: rgba(167, 139, 250, 0.3);
+  background: rgba(167, 139, 250, 0.12);
+  color: #e9d5ff;
+  transition: background 0.15s;
+}
+.anomaly-workbench .proposal-card button:hover:not(:disabled) { background: rgba(167, 139, 250, 0.22); }
+.anomaly-workbench .proposal-card button:disabled { opacity: 0.35; }
+
+/* ─── ACTION PROGRESS BAR (inside anomaly workbench) ─────────────────────── */
+.action-progress {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 20px 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(225, 255, 0, 0.15);
+  background: rgba(225, 255, 0, 0.04);
+  border-radius: var(--radius-sm);
+  color: #e1ff00;
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.06em;
+  overflow: hidden;
+}
+
+.action-progress::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: #e1ff00;
+  box-shadow: 0 0 8px #e1ff00;
+  animation: action-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes action-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.action-progress > span {
+  display: inline-block;
+  width: 20px;
+  height: 2px;
+  background: rgba(225, 255, 0, 0.4);
+  border-radius: 1px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.action-progress > span::after {
+  content: '';
+  position: absolute;
+  left: -60%;
+  top: 0; bottom: 0;
+  width: 60%;
+  background: #e1ff00;
+  animation: action-progress-slide 1.2s ease-in-out infinite;
+}
+
+/* ─── BRANCH BANNER ──────────────────────────────────────────────────────── */
+.branch-banner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  background: rgba(167, 139, 250, 0.06);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+}
+
+.branch-banner b { color: #ddd6fe; font-size: 12px; letter-spacing: 0.04em; }
+.branch-banner span { color: #c4b5fd; font-size: 11px; }
+
+.branch-banner button,
+.branch-banner a {
+  padding: 7px 14px;
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  background: rgba(167, 139, 250, 0.10);
+  color: #e9d5ff;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.branch-banner button:hover,
+.branch-banner a:hover { background: rgba(167, 139, 250, 0.2); }
+
+/* ─── PREFLIGHT STATUS ────────────────────────────────────────────────────── */
+.preflight-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+}
+.preflight-status.ready   { border: 1px solid rgba(52, 211, 153, 0.25); background: rgba(52, 211, 153, 0.06); }
+.preflight-status.blocked { border: 1px solid rgba(248, 113, 113, 0.25); background: rgba(248, 113, 113, 0.06); }
+.preflight-status.ready b   { color: var(--green); font-size: 12px; letter-spacing: 0.04em; }
+.preflight-status.blocked b { color: var(--red);   font-size: 12px; letter-spacing: 0.04em; }
+.preflight-status span      { color: var(--text-secondary); }
+
+
 @media (max-width: 1100px) {
   .v2-dashboard {
     grid-template-columns: 1fr;

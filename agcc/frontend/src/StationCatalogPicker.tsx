@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AgccClient, ensureSession } from './api'
 import { AssumptionMark } from './DataStatus'
 import { useMissionStore } from './store'
-import { GroundStationWireframe } from './SetupComponents'
+import { GroundStationWireframe, GlassSelect } from './SetupComponents'
 
 type Station = { station_id: string; name: string; provider_id: string; supported_bands: string[] | null; max_downlink_rate_mbps: number | null; cost_per_minute: number; currency: string; field_provenance: { sources: Record<string, string>; assumptions: string[] } }
 type Catalog = { catalog_id: string; catalog_version: string; stations: Station[] }
@@ -15,13 +15,14 @@ export function StationCatalogPicker({ onBack, onContinue }: { onBack?: () => vo
   const [query, setQuery] = useState('')
   const [provider, setProvider] = useState('all')
   const [expanded, setExpanded] = useState(false)
+  const [showDisclaimer, setShowDisclaimer] = useState(false)
   useEffect(() => {
     ensureSession(stationClient).then(() => stationClient.request<Catalog>('/catalog/stations')).then((loaded) => {
       setCatalog(loaded)
       const valid = draft.stations.filter((id) => loaded.stations.some((station) => station.station_id === id))
       if (valid.length === 0) {
         const compatible = loaded.stations.filter((station) => station.supported_bands?.includes(draft.band))
-        updateDraft({ stations: compatible.slice(0, 3).map((station) => station.station_id) })
+        updateDraft({ stations: compatible.map((station) => station.station_id) })
       }
     }).catch(() => setError('Station catalogue could not be loaded.'))
   }, [])
@@ -45,14 +46,17 @@ export function StationCatalogPicker({ onBack, onContinue }: { onBack?: () => vo
           <div style={{ padding: '24px 32px 16px 32px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', background: 'rgba(0,0,0,0.2)', borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 14px' }}>
               <h3 className="island-title" style={{ margin: 0 }}>Available Stations</h3>
-              <div className="disclaimer-group">
-                <span className="disclaimer-icon">[i]</span>
-                <div className="disclaimer-tooltip">Real provider/place labels are retained, but starred properties are simulation assumptions.</div>
-              </div>
+              <span onClick={() => setShowDisclaimer(!showDisclaimer)} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: '0 4px' }}>[i]</span>
               <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontFamily: 'var(--font-mono)', marginLeft: 'auto' }}>
                 {draft.stations.length} SELECTED &middot; {displayed.length} OF {visible.length} SHOWN
               </span>
             </div>
+            
+            {showDisclaimer && (
+              <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(225, 255, 0, 0.05)', border: '1px solid rgba(225, 255, 0, 0.2)', borderRadius: '8px', color: '#94a3b8', fontSize: '11px', fontFamily: 'var(--font-mono)', lineHeight: 1.4 }}>
+                Real provider/place labels are retained, but starred properties are simulation assumptions.
+              </div>
+            )}
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
               <div className="glass-value-box" style={{ width: '100%', minHeight: 'auto' }}>
@@ -62,10 +66,14 @@ export function StationCatalogPicker({ onBack, onContinue }: { onBack?: () => vo
                 <button type="button" className="setup-secondary-btn" style={{ flex: 1, background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.4))', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '16px', padding: '12px', color: '#fff', fontSize: '11px', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }} disabled={draft.stations.length === 0} onClick={() => updateDraft({ stations: [] })}>Clear Selection</button>
                 <button type="button" className="setup-secondary-btn" style={{ flex: 1, background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.4))', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '16px', padding: '12px', color: '#fff', fontSize: '11px', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }} disabled={allFilteredSelected || filteredCompatibleIds.length === 0} onClick={() => updateDraft({ stations: [...new Set([...draft.stations, ...filteredCompatibleIds])] })}>Select All</button>
                 <div className="glass-value-box" style={{ flex: 1, minHeight: 'auto', padding: '0 14px' }}>
-                  <select style={{ padding: '12px 0', width: '100%', background: 'transparent', border: 'none', color: '#fff', outline: 'none', appearance: 'none', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }} aria-label="Provider filter" value={provider} onChange={(event) => { setProvider(event.target.value); setExpanded(false) }}>
-                    <option value="all" style={{color: '#000'}}>FILTER PROVIDERS</option>
-                    {providers.map((item) => <option key={item} style={{color: '#000'}}>{item}</option>)}
-                  </select>
+                  <GlassSelect 
+                    value={provider} 
+                    onChange={(val) => { setProvider(val); setExpanded(false); }}
+                    options={[
+                      { value: "all", label: "FILTER PROVIDERS" },
+                      ...providers.map(item => ({ value: item, label: item }))
+                    ]}
+                  />
                 </div>
               </div>
             </div>
