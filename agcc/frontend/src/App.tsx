@@ -3,7 +3,7 @@ import { AgccClient, resetSession } from './api'
 import { AssumptionMark } from './DataStatus'
 import { GlobeView, type GroundPoint, type SatelliteMarker, type StationMarker } from './GlobeView'
 import { SetupGlobe } from './SetupGlobe'
-import { LiveWeather, type WeatherVisual } from './LiveWeather'
+import { LiveWeather, weatherCondition, type WeatherVisual } from './LiveWeather'
 import { StationCatalogPicker } from './StationCatalogPicker'
 
 import { AsteroidBackground, DeepSpaceBackground, ScrubberInput, PresetSelector, SatelliteWireframe, GlassSelect } from './SetupComponents'
@@ -439,10 +439,10 @@ function AnomalyChat({ runtime, refresh, resetToStart }: { runtime: Runtime; ref
     .map((item) => stationName(item.station_id)) ?? []
   return <>
     <section className="anomaly-workbench panel">
-      <div className="watson-heading"><div><span className="eyebrow">SEPARATE ANOMALY TIMELINE · GROQ CHAT</span><h2>Describe your anomaly</h2><small>Branch time: {localTime(runtime.state.sim_time)}</small></div><div className="anomaly-heading-actions"><button type="button" onClick={resetToStart} disabled={Boolean(actionBusy)}>Reset branch to T=0</button><button className={`watson-status ${watson?.reachable ? 'ready' : 'error'}`} onClick={probe} disabled={busy || Boolean(actionBusy)}>{watson?.reachable ? `GROQ READY · ${watson.model_id}` : `${watson?.status?.replaceAll('_',' ') ?? 'TESTING GROQ'} · RETEST`}</button></div></div>
+      <div className="watson-heading"><div><span className="eyebrow">SEPARATE ANOMALY TIMELINE · GROQ CHAT</span><h2>Describe your anomaly</h2><small>Branch time: {localTime(runtime.state.sim_time)}</small></div><div className="anomaly-heading-actions"><button type="button" onClick={resetToStart} disabled={Boolean(actionBusy)}>Reset branch to T=0</button><button className={`watson-status ${watson?.reachable ? 'ready' : 'error'}`} onClick={probe} disabled={busy || Boolean(actionBusy)}>{watson?.reachable ? `WATSONX READY · ${watson.model_id}` : `${watson?.status?.replaceAll('_',' ') ?? 'TESTING WATSONX'} · RETEST`}</button></div></div>
       {watson?.message && <p className="watson-error">{watson.message}</p>}
       <div className="chat-history">{turns.map((turn, index) => <p className={turn.startsWith('User:') ? 'user-turn' : turn.startsWith('LLM:') ? 'watson-turn' : 'system-turn'} key={`${index}-${turn}`}>{turn}</p>)}</div>
-      <div className="anomaly-chat"><textarea value={text} onChange={(event) => setText(event.target.value)} placeholder={`Example: ${runtime.state.stations.find((item) => item.classification === 'approved')?.name ?? 'the next station'} has severe link degradation`}/><button disabled={!text.trim() || busy || Boolean(actionBusy) || watson?.reachable === false} onClick={send}>{busy ? 'Contacting…' : 'Ask Groq'}</button></div>
+      <div className="anomaly-chat"><textarea value={text} onChange={(event) => setText(event.target.value)} placeholder={`Example: ${runtime.state.stations.find((item) => item.classification === 'approved')?.name ?? 'the next station'} has severe link degradation`}/><button disabled={!text.trim() || busy || Boolean(actionBusy) || watson?.reachable === false} onClick={send}>{busy ? 'Contacting…' : 'Ask WatsonX'}</button></div>
       <p className="workflow-message">{message}</p>
       {actionBusy && <div className="action-progress" role="progressbar" aria-label={`${actionBusy} in progress`}><span/><b>{actionBusy === 'replan' ? 'Computing pass capacity and validating route…' : `${actionBusy} in progress…`}</b></div>}
       {proposal && <div className="proposal-card"><b>{proposal.status.replaceAll('_',' ')}</b><span>{proposal.intent.anomaly_type ?? 'unresolved'} · {stationName(proposal.intent.station_id)} · multiplier {proposal.rate_multiplier ?? 'needs clarification'}×<AssumptionMark reason="Groq proposed the effect; deterministic bounds validate the multiplier."/></span><button disabled={proposal.status !== 'pending' || Boolean(actionBusy)} onClick={confirm}>{actionBusy === 'confirm' ? 'Confirming…' : 'Confirm branch injection'}</button><button disabled={Boolean(actionBusy) || (proposal.status !== 'confirmed' && !runtime.events.some((event) => event.event_type === 'anomaly_detected'))} onClick={requestReplan}>{actionBusy === 'replan' ? 'Calculating…' : 'Calculate replan'}</button></div>}
@@ -493,6 +493,26 @@ function SemiGauge({ value, predicted = 0, total, shortfall = 0, color = '#e1ff0
       </div>
     </div>
   )
+}
+
+function WeatherGlyph({ weather }: { weather: WeatherVisual }) {
+  const label = weatherCondition(weather)
+  return <span className={`station-weather-icon ${weather.kind}`} role="img" aria-label={`${label} weather`} title={`${label} weather`}>
+    {weather.kind === 'clear' && <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></svg>}
+    {weather.kind === 'partly' && <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 2.5v1.2M3.3 8H2.1M4.7 4.7l-.9-.9M11.3 4.7l.9-.9M7.2 19h10.2a3.8 3.8 0 0 0 .4-7.6 5.6 5.6 0 0 0-10.5-1.2A4.4 4.4 0 0 0 7.2 19Z"/></svg>}
+    {weather.kind === 'cloud' && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 18.2h10.2a4.1 4.1 0 0 0 .5-8.2A6.1 6.1 0 0 0 6.4 8.7a4.8 4.8 0 0 0 .8 9.5Z"/></svg>}
+    {weather.kind === 'rain' && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 15.5h10.2a4.1 4.1 0 0 0 .5-8.2A6.1 6.1 0 0 0 6.4 6a4.8 4.8 0 0 0 .8 9.5Z"/><path d="m8.5 18-1 2M13 18l-1 2M17.5 18l-1 2"/></svg>}
+  </span>
+}
+
+function StationWeatherLabel({ stationName, weather, next = false }: { stationName: string; weather: WeatherVisual | null; next?: boolean }) {
+  return <span className={`station-name-with-weather${next ? ' next' : ''}`}>
+    {weather && <WeatherGlyph weather={weather}/>}
+    <span className="station-weather-copy">
+      <span>{stationName}</span>
+      {weather && <small>{weatherCondition(weather)}</small>}
+    </span>
+  </span>
 }
 
 function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
@@ -578,9 +598,10 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
   useEffect(() => { const timer = setInterval(() => { for (const target of ['prediction','live','branch'] as MissionMode[]) if (runtimes[target] && !runtimes[target]!.state.paused) void refresh(target) }, 1000); return () => clearInterval(timer) }, [runtimes, refresh])
 
   if (!appliedDraft) return <div className="live-unavailable"><h2>Create your custom satellite first</h2><p>The mission controller will remain mounted after creation, including while you return to Setup.</p></div>
-  const runtime = runtimes[mode]
+  const sharedFailure = failures[mode] ?? failures.prediction ?? failures.live ?? failures.branch
+  const runtime = sharedFailure ? undefined : runtimes[mode]
   if (!runtime) {
-    const failure = failures[mode]
+    const failure = sharedFailure
     if (failure) {
       const plan = failure.plan
       const transferable = plan?.planned_volume_mb ?? 0
@@ -604,6 +625,8 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
   const setSpeed = (speed: string) => client.request<SimulationState>('/simulation/speed', { method: 'POST', body: JSON.stringify({ speed }) }).then((next) => setRuntimes((current) => ({ ...current, [mode]: { ...runtime, state: next } }))).catch((error) => setStatuses((current) => ({ ...current, [mode]: error.message ?? 'Speed change failed' })))
   const toggle = () => setSpeed(state.paused ? (state.speed === 'paused' ? '10x' : state.speed) : 'paused')
   const approved = state.opportunities.filter((item) => item.contact_id).sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at))
+  const nextContact = approved.find((item) => Date.parse(item.start_at) > Date.parse(state.sim_time))
+  const displayedContact = state.current_contact ?? nextContact
   const route = [
     ...approved.filter((item) => state.current_contact?.contact_id === item.contact_id),
     ...approved.filter((item) => Date.parse(item.start_at) > Date.parse(state.sim_time)),
@@ -825,28 +848,17 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>GROUND STATION</span>
                   {state.current_contact ? (
-                    <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{state.current_contact.station_name}</span>
+                    <StationWeatherLabel stationName={state.current_contact.station_name} weather={mode === 'live' ? liveWeatherVisual : null}/>
                   ) : (() => {
-                    const next = approved.find((item) => Date.parse(item.start_at) > Date.parse(state.sim_time))
-                    if (next) return (
+                    if (nextContact) return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <span style={{ fontSize: '11px', color: 'rgba(225,255,0,0.6)', letterSpacing: '0.08em' }}>NEXT UP</span>
-                        <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{next.station_name}</span>
+                        <StationWeatherLabel stationName={nextContact.station_name} weather={mode === 'live' ? liveWeatherVisual : null} next/>
                       </div>
                     )
                     return <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>NO CONTACTS</span>
                   })()}
                 </div>
-                {mode === 'live' && liveWeatherVisual && state.current_contact && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <span style={{ fontSize: '14px' }}>
-                      {liveWeatherVisual.kind === 'rain' ? '🌧️' : liveWeatherVisual.kind === 'cloud' ? '☁️' : '☀️'}
-                    </span>
-                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', letterSpacing: '0.05em' }}>
-                      {liveWeatherVisual.precipitation_mm_per_hr > 0 ? `${liveWeatherVisual.precipitation_mm_per_hr.toFixed(1)} mm/h` : `${liveWeatherVisual.cloud_cover_pct.toFixed(0)}% cloud`}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -885,7 +897,7 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
             )}
 
 
-            {mode === 'live' && <div style={{ display: 'none' }}><LiveWeather client={client} simulationTime={state.sim_time} activeStationId={state.current_contact?.station_id} onActiveWeather={setLiveWeatherVisual}/></div>}
+            {mode === 'live' && <div style={{ display: 'none' }}><LiveWeather client={client} simulationTime={state.sim_time} activeStationId={displayedContact?.station_id} onActiveWeather={setLiveWeatherVisual}/></div>}
           </div>
 
           <div className="glass-island-form mission-metrics budget-metrics" style={{ flex: '1', display: 'flex', flexDirection: 'column', padding: '24px' }}>

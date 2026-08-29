@@ -129,37 +129,43 @@ def _llm_failure(exc: Exception) -> dict[str, str]:
             return {
                 "code": "LLM_AUTHENTICATION_FAILED",
                 "message": (
-                    "Groq rejected the API key. Set GROQ_API_KEY in the PowerShell window "
-                    "that starts the backend, then restart it."
+                    "Watsonx authentication failed. Set AGCC_GRANITE_API_KEY in the "
+                    "PowerShell window that starts the backend, then restart it."
                 ),
             }
         if status == 403:
             return {
                 "code": "LLM_ACCESS_DENIED",
-                "message": "Groq authenticated the request but denied model access.",
+                "message": (
+                    "Watsonx authenticated the request but denied access to the "
+                    "configured project or Granite model."
+                ),
             }
         if status == 404:
             return {
                 "code": "LLM_MODEL_NOT_FOUND",
-                "message": "The configured Groq model is unavailable; verify GROQ_MODEL_ID.",
+                "message": (
+                    "The configured Granite model is unavailable; verify "
+                    "AGCC_GRANITE_MODEL_ID and AGCC_GRANITE_BASE_URL."
+                ),
             }
         if status == 429:
             return {
                 "code": "LLM_RATE_LIMITED",
-                "message": "Groq is rate-limited; wait briefly and retry.",
+                "message": "Watsonx is rate-limited; wait briefly and retry.",
             }
         return {
             "code": "LLM_REQUEST_REJECTED",
-            "message": f"Groq rejected the request with HTTP {status}.",
+            "message": f"Watsonx rejected the request with HTTP {status}.",
         }
     if isinstance(exc, httpx.RequestError):
         return {
             "code": "LLM_NETWORK_FAILED",
-            "message": "The backend could not reach the configured Groq endpoint.",
+            "message": "The backend could not reach the configured Watsonx endpoint.",
         }
     return {
         "code": "LLM_RESPONSE_INVALID",
-        "message": f"Groq response rejected: {str(exc)[:180]}",
+        "message": f"Watsonx response rejected: {str(exc)[:180]}",
     }
 
 
@@ -626,8 +632,8 @@ def create_v1_router(container: AppContainer) -> APIRouter:
                 detail={
                     "code": "LLM_NOT_CONFIGURED",
                     "message": (
-                        "Set GROQ_API_KEY in the PowerShell window that starts the "
-                        "backend, then restart it before using anomaly chat."
+                        "Set AGCC_GRANITE_API_KEY in the PowerShell window that starts "
+                        "the backend, then restart it before using anomaly chat."
                     ),
                 },
             ) from exc

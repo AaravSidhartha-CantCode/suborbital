@@ -18,6 +18,7 @@ from agcc.granite import (
     IbmIamTokenProvider,
     NotConfiguredGraniteClient,
     granite_client_from_environment,
+    granite_configuration,
 )
 
 
@@ -60,6 +61,31 @@ def test_unconfigured_environment_uses_no_defaults(monkeypatch: pytest.MonkeyPat
     assert isinstance(granite_client_from_environment(), NotConfiguredGraniteClient)
     result = GraniteExplanationService().explain(request())
     assert result.fact_references == ["plan_1"]
+
+
+def test_environment_builds_watsonx_granite_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGCC_GRANITE_API_KEY", "raw-secret")
+    monkeypatch.setenv("AGCC_GRANITE_BASE_URL", "https://eu-de.ml.cloud.ibm.com")
+    monkeypatch.setenv("AGCC_GRANITE_MODEL_ID", "ibm/granite-4-h-small")
+    monkeypatch.setenv(
+        "AGCC_GRANITE_PROJECT_ID", "68204ffc-8923-48ff-b244-9e81162676cc"
+    )
+
+    client = granite_client_from_environment()
+    assert isinstance(client, HttpGraniteClient)
+    assert client.base_url == (
+        "https://eu-de.ml.cloud.ibm.com/ml/v1/text/chat?version=2024-05-31"
+    )
+    assert client.model_id == "ibm/granite-4-h-small"
+    assert client.project_id == "68204ffc-8923-48ff-b244-9e81162676cc"
+    assert granite_configuration() == {
+        "configured": True,
+        "provider": "watsonx",
+        "endpoint": client.base_url,
+        "model_id": "ibm/granite-4-h-small",
+        "project_id_present": True,
+        "api_key_present": True,
+    }
 
 
 def test_valid_grounded_schema_is_accepted() -> None:

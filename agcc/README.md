@@ -17,16 +17,18 @@ uvicorn agcc.api.app:app --reload --port 8000
 ```
 
 The primary interface is `/api/v1`. Browser-tab sessions are held in memory and
-sent through `X-AGCC-Session`. The optional explanation/anomaly provider in this
-experimental copy is Groq. Configure it in the backend PowerShell window:
+sent through `X-AGCC-Session`. Explanations and anomaly parsing use IBM watsonx.ai
+with Granite. Configure the IBM Cloud API key in the backend PowerShell window:
 
 ```powershell
-$env:GROQ_API_KEY="your-groq-api-key"
-$env:GROQ_MODEL_ID="llama-3.3-70b-versatile"
+$env:AGCC_GRANITE_API_KEY="your-ibm-cloud-api-key"
+$env:AGCC_GRANITE_BASE_URL="https://eu-de.ml.cloud.ibm.com"
+$env:AGCC_GRANITE_PROJECT_ID="68204ffc-8923-48ff-b244-9e81162676cc"
+$env:AGCC_GRANITE_MODEL_ID="ibm/granite-4-h-small"
 ```
 
 Never paste keys into source files or commit them. Deterministic explanation
-fallbacks remain available when Groq is not configured or unavailable.
+fallbacks remain available when watsonx.ai is not configured or unavailable.
 
 Live ground weather uses Open-Meteo when its endpoint is set before the backend
 starts. No API key is required for the free prototype endpoint:

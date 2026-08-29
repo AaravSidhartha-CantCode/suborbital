@@ -4,7 +4,7 @@ import { Suspense, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { feature } from 'topojson-client'
 import countries from 'world-atlas/countries-110m.json'
-import type { WeatherVisual } from './LiveWeather'
+import { weatherCondition, type WeatherVisual } from './LiveWeather'
 
 export type GroundPoint = { latitude_deg: number; longitude_deg: number }
 export type StationMarker = GroundPoint & { station_id: string; name: string; classification: string; assumed_fields: string[] }
@@ -87,7 +87,7 @@ function WeatherEffect({ position, weather }: { position: THREE.Vector3; weather
       {weather.kind === 'rain' && [-.08, 0, .08].map((offset) => <Line key={`rain-${offset}`} points={[[offset, -.04, 0], [offset, -.24 - weather.intensity * .12, 0]]} color="#66c9ff" lineWidth={1.5} transparent opacity={0.6}/>)}
       <Html position={[0.2, 0.1, 0]} center>
         <div style={{ background: 'rgba(5, 10, 15, 0.8)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(8px)', color: '#fff', font: '400 10px "JetBrains Mono", monospace', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
-          {weather.kind === 'rain' ? 'HEAVY CLOUDS & RAIN' : 'PARTLY CLOUDY'}
+          {weatherCondition(weather).toUpperCase()}
         </div>
       </Html>
     </group>

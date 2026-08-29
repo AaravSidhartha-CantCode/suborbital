@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
@@ -305,11 +306,13 @@ export function GroundStationWireframe() {
 
 export function GlassSelect({ value, onChange, options, style }: { value: string | number, onChange: (val: string) => void, options: {value: string | number, label: string}[], style?: React.CSSProperties }) {
   const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
+      if (ref.current && !ref.current.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
     }
@@ -325,6 +328,30 @@ export function GlassSelect({ value, onChange, options, style }: { value: string
       }
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const positionMenu = () => {
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
+      const menuHeight = Math.min(250, options.length * 40 + 2);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openAbove = spaceBelow < menuHeight + 12 && rect.top > spaceBelow;
+      setMenuStyle({
+        position: 'fixed',
+        left: rect.left,
+        width: rect.width,
+        top: openAbove ? Math.max(8, rect.top - menuHeight - 4) : rect.bottom + 4,
+      });
+    };
+    positionMenu();
+    window.addEventListener('resize', positionMenu);
+    window.addEventListener('scroll', positionMenu, true);
+    return () => {
+      window.removeEventListener('resize', positionMenu);
+      window.removeEventListener('scroll', positionMenu, true);
+    };
+  }, [open, options.length]);
 
   const selectedOption = options.find(o => String(o.value) === String(value));
 
@@ -342,18 +369,17 @@ export function GlassSelect({ value, onChange, options, style }: { value: string
         <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>?</span>
       </div>
       
-      {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0,
+      {open && createPortal(
+        <div ref={menuRef} style={{
+          ...menuStyle,
           background: 'rgba(10, 15, 25, 0.95)',
           border: '1px solid rgba(225, 255, 0, 0.2)',
           backdropFilter: 'blur(12px)',
           borderRadius: '8px',
           boxShadow: '0 8px 16px rgba(0,0,0,0.5)',
-          zIndex: 1000,
+          zIndex: 10000,
           maxHeight: '250px',
-          overflowY: 'auto',
-          marginTop: '4px'
+          overflowY: 'auto'
         }}>
           {options.map(opt => (
             <div 
@@ -378,7 +404,8 @@ export function GlassSelect({ value, onChange, options, style }: { value: string
               {opt.label}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
