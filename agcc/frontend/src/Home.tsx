@@ -61,7 +61,7 @@ export function Home({ onNavigate }: HomeProps) {
           </button>
         </div>
         <div className="home-object-label" aria-hidden="true">
-          <span>SAT / AGCC—01</span><i /><b>ORBITAL ASSET</b><small>ALT 550 KM · INC 53.0°</small>
+          <span>SAT / SUBORBITAL—01</span><i /><b>ORBITAL ASSET</b><small>ALT 550 KM · INC 53.0°</small>
         </div>
       </main>
 

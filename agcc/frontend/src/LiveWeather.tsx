@@ -63,7 +63,7 @@ export function LiveWeather({ client = new AgccClient(), simulationTime, activeS
   }, [client, weatherHour])
   return <section className="live-weather">
     <span className="eyebrow">LIVE OPEN-METEO FORECAST · ACTIVE PLAN ONLY</span><h2>Planned-station weather</h2>
-    {error && <div className="weather-error"><b>Weather unavailable</b><span>{error}</span><small>Complete scenario setup and verify the two AGCC weather settings.</small></div>}
+    {error && <div className="weather-error"><b>Weather unavailable</b><span>{error}</span><small>Complete scenario setup and verify the two Suborbital weather settings.</small></div>}
     {!error && data.length === 0 && <p>The active plan has no stations requiring weather data.</p>}
     <div className="weather-grid">{plannedWeather.map((item) => <article key={item.station_id}>
       <span>{item.station_id.replace('station_demo_', '').replaceAll('_', ' ')}<AssumptionMark reason="The hybrid catalogue station identity and coordinates are unverified."/></span>

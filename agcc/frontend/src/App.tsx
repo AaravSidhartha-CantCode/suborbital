@@ -32,9 +32,9 @@ const LockIcon = () => (
 function GlobalHeader({ path, appliedDraft, onNavigate }: { path: string; appliedDraft: any; onNavigate: (path: string) => void }) {
   return (
     <header className="home-header" style={{ position: path === '/' ? 'absolute' : 'relative', width: '100%', boxSizing: 'border-box' }}>
-      <button className="home-brand" onClick={() => onNavigate('/')} aria-label="AGCC home">
+      <button className="home-brand" onClick={() => onNavigate('/')} aria-label="Suborbital home">
         <span className="home-brand-mark"><i /><i /><i /><i /></span>
-        <span><b>AGCC</b><small>ORBITAL SYSTEMS</small></span>
+        <span><b>Suborbital</b><small>ORBITAL SYSTEMS</small></span>
       </button>
       <nav className="home-nav" aria-label="Primary navigation">
         <button className={path === '/' ? 'active' : ''} aria-current={path === '/' ? 'page' : undefined} onClick={() => onNavigate('/')}>HOME</button>
