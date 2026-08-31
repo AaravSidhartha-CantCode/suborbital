@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 
 from agcc.api.app import create_app
+from agcc.api.service import AgccApplicationService
 from agcc.api.v1 import SessionRepository
 from tests.api.test_api import scenario_payload
 
@@ -74,6 +76,27 @@ def test_atomic_timeline_initialization_shares_one_baseline_plan() -> None:
     )
     assert unapproved_plan.status_code == 409
     assert unapproved_plan.json()["error"]["code"] == "BASELINE_PLAN_LOCKED"
+
+
+def test_unexpected_timeline_error_returns_a_traceable_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_create_scenario(self: object, definition: object) -> None:
+        raise RuntimeError("private diagnostic detail")
+
+    monkeypatch.setattr(AgccApplicationService, "create_scenario", fail_create_scenario)
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    payload = scenario_payload()
+    response = client.post(
+        "/api/v1/timelines/initialize",
+        json={"scenario": payload, "baseline_at": payload["mission"]["release_at"]},
+    )
+
+    assert response.status_code == 500
+    body = response.json()
+    assert body["error"]["code"] == "INTERNAL_SERVER_ERROR"
+    assert body["request_id"] in body["error"]["message"]
+    assert "private diagnostic detail" not in response.text
 
 
 def test_inactive_sessions_are_evicted_after_twenty_four_hours() -> None:

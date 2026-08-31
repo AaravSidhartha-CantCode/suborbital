@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 from typing import Any
@@ -31,6 +32,8 @@ from agcc.api.service import AgccApplicationService, ApiServiceError
 from agcc.api.v1 import AppContainer, create_v1_router
 from agcc.explanations import ExplanationRequest, ExplanationService
 from agcc.granite import GraniteExplanationRequest, GraniteExplanationService
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(service: AgccApplicationService | None = None) -> FastAPI:
@@ -93,6 +96,23 @@ def create_app(service: AgccApplicationService | None = None) -> FastAPI:
             "DOMAIN_VALIDATION_ERROR",
             "Domain validation failed",
             details={"errors": exc.errors()},
+        )
+
+    @app.exception_handler(Exception)
+    async def unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+        request_id = getattr(request.state, "request_id", "unknown")
+        logger.exception(
+            "Unhandled API error for %s %s (request_id=%s)",
+            request.method,
+            request.url.path,
+            request_id,
+            exc_info=exc,
+        )
+        return _error_response(
+            request,
+            500,
+            "INTERNAL_SERVER_ERROR",
+            f"The backend could not complete this operation. Reference: {request_id}",
         )
 
     @app.get("/health")
