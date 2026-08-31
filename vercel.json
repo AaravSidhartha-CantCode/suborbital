@@ -1,0 +1,10 @@
+{
+  "buildCommand": "cd agcc/frontend && npm install && npm run build",
+  "outputDirectory": "agcc/frontend/dist",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    }
+  ]
+}

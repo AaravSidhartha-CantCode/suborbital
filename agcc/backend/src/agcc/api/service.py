@@ -104,7 +104,7 @@ class AgccApplicationService:
         self.catalog_path = catalog_path or (
             Path(configured_catalog)
             if configured_catalog
-            else data_root / "catalogs" / "stations.demo.json"
+            else data_root / "catalogs" / "stations.hybrid.json"
         )
         self.catalog = load_catalog_from_file(self.catalog_path)
         self.propagator = CircularKeplerPropagator()
