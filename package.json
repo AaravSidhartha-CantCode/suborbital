@@ -1,0 +1,7 @@
+{
+  "name": "suborbital-root",
+  "private": true,
+  "scripts": {
+    "build": "cd agcc/frontend && npm install && npm run build"
+  }
+}
