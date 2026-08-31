@@ -318,8 +318,6 @@ function CameraTracker({ tracking, satelliteWorldPos, controlsRef }: { tracking:
         up.set(1, 0, 0)
       }
       
-      const right = new THREE.Vector3().crossVectors(up, S).normalize()
-      
       const targetC = S_norm.multiplyScalar(4.2)
       
       camera.position.lerp(targetC, 0.05)
@@ -334,7 +332,7 @@ function CameraTracker({ tracking, satelliteWorldPos, controlsRef }: { tracking:
   return null
 }
 
-export function GlobeView({ groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void }) {
+export function GlobeView({ groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; onSatelliteSelect?: () => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void }) {
   const [dragging, setDragging] = useState(false)
   const [tracking, setTracking] = useState(true)
   const controlsRef = useRef<any>(null)
