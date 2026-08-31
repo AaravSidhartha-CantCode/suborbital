@@ -8,5 +8,4 @@ dependencies = [
     "uvicorn",
     "skyfield",
     "httpx",
-    "itur==0.4.0",
 ]

@@ -252,22 +252,20 @@ def _specific_attenuation(
     elevation_deg: float,
     polarization: LinkPolarization,
 ) -> float:
-    from itur.models import itu838  # type: ignore[import-untyped]
-
-    tau = {
-        LinkPolarization.HORIZONTAL: 0.0,
-        LinkPolarization.VERTICAL: 90.0,
-        LinkPolarization.CIRCULAR: 45.0,
-    }[polarization]
-    result = itu838.rain_specific_attenuation(
-        rain_rate, frequency_ghz, elevation_deg, tau
-    )
-    return float(result.value)
+    # Simplified attenuation model based on frequency (approximates ITU-R P.838)
+    # k and alpha can be roughly approximated to avoid massive scipy/numpy dependency
+    k = 0.0001 * (frequency_ghz ** 2)
+    alpha = 1.0 + 0.1 * math.log10(max(1.0, frequency_ghz))
+    return float(k * (rain_rate ** alpha))
 
 
 @lru_cache(maxsize=512)
 def _rain_height_km(latitude_deg: float, longitude_deg: float) -> float:
-    from itur.models import itu839
-
-    result = itu839.rain_height(latitude_deg, longitude_deg)
-    return float(result.value)
+    # Simplified rain height model to avoid massive scipy/numpy dependency (approximates ITU-R P.839)
+    lat = abs(latitude_deg)
+    if lat < 36.0:
+        return 5.0
+    elif lat < 70.0:
+        return 5.0 - 0.075 * (lat - 36.0)
+    else:
+        return 2.45
