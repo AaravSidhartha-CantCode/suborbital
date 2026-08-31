@@ -329,8 +329,17 @@ class GraniteAnomalyIntentParser:
         if delay is not None and not _number_is_explicit(text, float(delay)):
             payload["explicit_delay_s"] = None
             payload.setdefault("missing_fields", []).append("explicit_delay_s")
+        explicit_stations = _stations_named_in_latest_user_turn(text, context)
         station_value = payload.get("station_id")
-        if station_value not in context.station_ids:
+        if len(explicit_stations) == 1:
+            payload["station_id"] = explicit_stations[0]
+            payload["missing_fields"] = [
+                field for field in payload.get("missing_fields", []) if field != "station_id"
+            ]
+        elif len(explicit_stations) > 1:
+            payload["station_id"] = None
+            payload.setdefault("missing_fields", []).append("station_id")
+        elif station_value not in context.station_ids:
             normalized = str(station_value or "").strip().casefold()
             matching = [
                 station_id
@@ -341,6 +350,21 @@ class GraniteAnomalyIntentParser:
             if not payload["station_id"]:
                 payload.setdefault("missing_fields", []).append("station_id")
         return ParsedAnomalyIntent.model_validate(payload)
+
+
+def _stations_named_in_latest_user_turn(
+    text: str, context: AnomalyContext
+) -> list[str]:
+    """Resolve explicit catalog names without trusting the model's selected ID."""
+    user_turns = re.findall(r"(?im)^\s*User:\s*(.+)$", text)
+    latest = user_turns[-1] if user_turns else text
+    normalized_text = " " + re.sub(r"[^a-z0-9]+", " ", latest.casefold()).strip() + " "
+    matches = []
+    for station_id, name in context.station_names.items():
+        normalized_name = re.sub(r"[^a-z0-9]+", " ", name.casefold()).strip()
+        if normalized_name and f" {normalized_name} " in normalized_text:
+            matches.append(station_id)
+    return matches
 
 
 def _normalize_anomaly_payload(raw: dict[str, Any]) -> dict[str, Any]:

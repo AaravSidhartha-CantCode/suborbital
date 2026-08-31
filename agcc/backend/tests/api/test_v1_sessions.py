@@ -277,6 +277,15 @@ def test_anomaly_replan_approve_activates_route_and_reject_remains_available() -
     assert proposal.status_code == 200, proposal.text
     proposal_body = proposal.json()
     assert proposal_body["proposed_plan"] is not None
+    outage_start = datetime.fromisoformat(
+        confirmed.json()["starts_at"].replace("Z", "+00:00")
+    )
+    assert all(
+        contact["station_id"] != station_id
+        for contact in proposal_body["proposed_plan"]["contacts"]
+        if datetime.fromisoformat(contact["start_at"].replace("Z", "+00:00"))
+        > outage_start
+    )
     approved = client.post(
         f"/api/v1/replans/{proposal_body['proposal_id']}/approve",
         json={"reason": "explicit test approval"},

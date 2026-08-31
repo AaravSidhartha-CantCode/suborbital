@@ -163,6 +163,27 @@ def test_human_station_name_is_normalized_to_catalogue_id() -> None:
     assert parsed.station_id == "station_alpha"
 
 
+def test_explicit_latest_user_station_overrides_conflicting_granite_station() -> None:
+    anomaly_context = AnomalyContext(
+        scenario_id="scenario_1",
+        station_ids=["station_isro_hassan", "station_isro_shadnagar"],
+        station_names={
+            "station_isro_hassan": "ISRO Hassan",
+            "station_isro_shadnagar": "ISRO Shadnagar",
+        },
+        contact_ids=["contact_1"],
+        simulation_time=datetime(2026, 8, 21, tzinfo=UTC),
+    )
+    parser = GraniteAnomalyIntentParser(FakeClient({
+        "anomaly_type": "station_outage",
+        "station_id": "station_isro_shadnagar",
+    }))
+
+    parsed = asyncio.run(parser.parse("User: ISRO Hassan is down", anomaly_context))
+
+    assert parsed.station_id == "station_isro_hassan"
+
+
 def test_common_granite_schema_variations_are_normalized() -> None:
     parser = GraniteAnomalyIntentParser(FakeClient({
         "intent": {
