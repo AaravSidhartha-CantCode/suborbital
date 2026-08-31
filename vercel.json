@@ -1,4 +1,5 @@
 {
+  "framework": "vite",
   "buildCommand": "cd agcc/frontend && npm install && npm run build",
   "outputDirectory": "agcc/frontend/dist",
   "rewrites": [
