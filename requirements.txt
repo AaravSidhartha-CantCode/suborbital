@@ -1,1 +1,6 @@
-./agcc/backend
+pydantic>=2.8,<3
+fastapi
+uvicorn
+skyfield
+httpx
+itur==0.4.0
