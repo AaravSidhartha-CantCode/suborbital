@@ -528,6 +528,7 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [liveWeatherVisual, setLiveWeatherVisual] = useState<WeatherVisual | null>(null)
   const initializing = useRef(new Set<MissionMode>())
   const fetchingResolution = useRef<Record<string, boolean>>({})
+  const refreshingRef = useRef<Record<string, boolean>>({})
   const runtimesRef = useRef(runtimes)
   useEffect(() => { runtimesRef.current = runtimes }, [runtimes])
 
@@ -597,7 +598,20 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
     initializing.current.clear(); setRuntimes({}); setFailures({}); setResolution(null); fetchingResolution.current = {}
     void initializeAll(appliedDraft, revision)
   }, [appliedDraft, revision, initializeAll])
-  useEffect(() => { const timer = setInterval(() => { for (const target of ['prediction','live','branch'] as MissionMode[]) { const rt = runtimesRef.current[target]; if (rt && !rt.state.paused) void refresh(target) } }, 1000); return () => clearInterval(timer) }, [refresh])
+  useEffect(() => {
+    const timer = setInterval(() => {
+      for (const target of ['prediction', 'live', 'branch'] as MissionMode[]) {
+        const rt = runtimesRef.current[target];
+        if (rt && !rt.state.paused && !refreshingRef.current[target]) {
+          refreshingRef.current[target] = true;
+          refresh(target).finally(() => {
+            refreshingRef.current[target] = false;
+          });
+        }
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [refresh])
 
   if (!appliedDraft) return <div className="live-unavailable"><h2>Create your custom satellite first</h2><p>The mission controller will remain mounted after creation, including while you return to Setup.</p></div>
   const sharedFailure = failures[mode] ?? failures.prediction ?? failures.live ?? failures.branch
@@ -740,7 +754,7 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
       <div className="mission-top-row">
         <div style={{ flex: '1.5', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div className="glass-island-globe" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-            <GlobeView groundTrack={runtime.track} stations={state.stations} satellite={state.satellite} activeStationId={state.current_contact?.station_id} weather={mode === 'live' ? liveWeatherVisual : null} onStationSelect={setSelectedStation} onSatelliteSelect={() => setSelectedSatellite(true)} />
+            <GlobeView groundTrack={runtime.track} stations={state.stations} satellite={state.satellite} activeStationId={state.current_contact?.station_id} weather={mode === 'live' ? liveWeatherVisual : null} onStationSelect={setSelectedStation} onSatelliteSelect={() => setSelectedSatellite(true)} orbitConfig={appliedDraft.orbit} />
             
             <div className="globe-left-panel" style={{ position: 'absolute', top: '24px', left: '24px', bottom: '24px', overflowY: 'auto', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none', width: '280px', paddingRight: '12px' }}>
               <div className="earth-caption" style={{ position: 'relative', top: 'auto', left: 'auto', pointerEvents: 'auto', width: '100%', boxSizing: 'border-box', padding: '12px 16px' }}>

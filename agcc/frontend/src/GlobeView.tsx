@@ -183,15 +183,47 @@ function OrbitInteraction({ track, orbitConfig, onOrbitChange, satellitePosition
   )
 }
 
-function Earth({ groundTrack, stations, satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, setDragging }: { groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void }) {
+function Earth({ running, groundTrack, stations, satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, setDragging }: { running?: boolean; groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void }) {
   const outlines = useMemo(countryLines, [])
   const orbitRadius = satellite ? 2 + Math.min(1.15, satellite.altitude_km / 1750) : 2.025
+  const instantaneousOrbit = useMemo(() => {
+    if (!running || !satellite || !orbitConfig) return null
+    const satellitePos = point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius)
+    const inclination = orbitConfig.inclination_deg * Math.PI / 180
+    let raan = 0;
+    if (Math.abs(Math.sin(inclination)) > 1e-6) {
+      const R = Math.sqrt(satellitePos.x * satellitePos.x + satellitePos.z * satellitePos.z)
+      if (R > 1e-6) {
+        const alpha = Math.atan2(satellitePos.z, satellitePos.x)
+        const val = -satellitePos.y / (R * Math.tan(inclination))
+        const clampedVal = Math.max(-1, Math.min(1, val))
+        raan = alpha + Math.asin(clampedVal)
+      }
+    }
+    const nx = Math.sin(inclination) * Math.sin(raan)
+    const ny = Math.cos(inclination)
+    const nz = -Math.sin(inclination) * Math.cos(raan)
+    const normal = new THREE.Vector3(nx, ny, nz).normalize()
+    const u = satellitePos.clone().normalize()
+    const v = new THREE.Vector3().crossVectors(normal, u).normalize()
+    
+    const points = []
+    for (let i = 0; i <= 120; i++) {
+      const theta = (i / 120) * Math.PI * 2
+      points.push(new THREE.Vector3()
+        .addScaledVector(u, Math.cos(theta) * orbitRadius)
+        .addScaledVector(v, Math.sin(theta) * orbitRadius))
+    }
+    return points
+  }, [running, satellite, orbitConfig, orbitRadius])
+
   const smoothTrack = useMemo(() => {
+    if (instantaneousOrbit) return instantaneousOrbit
     if (groundTrack.length < 2) return []
     const points = groundTrack.map((item) => point(item.latitude_deg, item.longitude_deg, orbitRadius))
     const curve = new THREE.CatmullRomCurve3(points, false)
     return curve.getPoints(points.length * 4)
-  }, [groundTrack, orbitRadius])
+  }, [groundTrack, orbitRadius, instantaneousOrbit])
   
   const satellitePosition = satellite ? point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius) : smoothTrack[0] ?? new THREE.Vector3(2.4, 0, 0)
   const activeStation = stations.find((station) => station.station_id === activeStationId)
@@ -294,7 +326,7 @@ function CameraTracker({ tracking, satelliteWorldPos, controlsRef }: { tracking:
   return null
 }
 
-export function GlobeView({ groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; onSatelliteSelect?: () => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void }) {
+export function GlobeView({ running, groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; onSatelliteSelect?: () => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void }) {
   const [dragging, setDragging] = useState(false)
   const [tracking, setTracking] = useState(true)
   const controlsRef = useRef<any>(null)
@@ -314,7 +346,7 @@ export function GlobeView({ groundTrack = [], stations = [], satellite, activeSt
         <pointLight position={[10, 0, 0]} intensity={0.8} color="#60a5fa"/>
         <Stars radius={100} depth={50} count={3500} factor={3} fade speed={.03}/>
         <Suspense fallback={null}>
-          <Earth groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} weather={weather} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} />
+          <Earth running={running} groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} weather={weather} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} />
           <CameraTracker tracking={tracking} satelliteWorldPos={satelliteWorldPos} controlsRef={controlsRef} />
         </Suspense>
         <OrbitControls ref={controlsRef} enablePan={false} enableRotate={!dragging && !tracking} enableZoom={!dragging && !tracking} minDistance={3.5} maxDistance={10}/>
