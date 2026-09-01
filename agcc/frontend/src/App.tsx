@@ -51,7 +51,7 @@ function GlobalHeader({ path, appliedDraft, onNavigate }: { path: string; applie
 const setupRoutes = ['/setup/orbit', '/setup/communications', '/setup/stations', '/setup/mission']
 const routeLabel: Record<string, string> = { '/setup/orbit': 'Orbit', '/setup/communications': 'Communications', '/setup/stations': 'Stations', '/setup/mission': 'Mission' }
 const sessionKeys: Record<MissionMode, string> = { prediction: 'agcc.session.prediction.v2', live: 'agcc.session.live.v2', branch: 'agcc.session.anomaly.v2' }
-const API_URL = import.meta.env.VITE_API_URL || ''
+const API_URL = (import.meta as any).env.VITE_API_URL || ''
 const clients: Record<MissionMode, AgccClient> = { prediction: new AgccClient(API_URL, sessionKeys.prediction), live: new AgccClient(API_URL, sessionKeys.live), branch: new AgccClient(API_URL, sessionKeys.branch) }
 const navigate = (path: string, setPath: (path: string) => void) => { history.pushState({}, '', path); setPath(path) }
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
