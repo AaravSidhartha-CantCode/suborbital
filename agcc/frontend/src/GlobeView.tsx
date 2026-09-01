@@ -169,7 +169,7 @@ function OrbitInteraction({ track, orbitConfig, onOrbitChange, satellitePosition
   )
 }
 
-function SatellitePropagator({ satGroupRef, orbitRingGroupRef, orbitConfig, simTimeAnchor, speed, paused, orbitRadius, propagatedPosRef }: { satGroupRef: React.RefObject<THREE.Group | null>; orbitRingGroupRef?: React.RefObject<THREE.Group | null>; orbitConfig: OrbitParams; simTimeAnchor: string; speed: string; paused: boolean; orbitRadius: number; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
+function SatellitePropagator({ satGroupRef, orbitConfig, simTimeAnchor, speed, paused, orbitRadius, propagatedPosRef }: { satGroupRef: React.RefObject<THREE.Group | null>; orbitConfig: OrbitParams; simTimeAnchor: string; speed: string; paused: boolean; orbitRadius: number; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
   const currentSimMs = useRef(Date.parse(simTimeAnchor))
   const lastFrameWall = useRef(performance.now())
 
@@ -198,18 +198,13 @@ function SatellitePropagator({ satGroupRef, orbitRingGroupRef, orbitConfig, simT
     
     currentSimMs.current += deltaWallMs * speedNum
     const pos = propagate(orbitConfig, new Date(currentSimMs.current))
-    const v = point(pos.latitude_deg, pos.longitude_deg, orbitRadius)
-    satGroupRef.current.position.copy(v)
-
+    
     if (propagatedPosRef) {
       propagatedPosRef.current = { lat: pos.latitude_deg, lon: pos.longitude_deg }
     }
 
-    if (orbitRingGroupRef?.current) {
-      const currentGst = gmstRad(new Date(currentSimMs.current))
-      const epochGst = gmstRad(new Date(orbitConfig.epoch))
-      orbitRingGroupRef.current.rotation.y = epochGst - currentGst
-    }
+    const v = point(pos.latitude_deg, pos.longitude_deg, orbitRadius)
+    satGroupRef.current.position.copy(v)
   })
 
   return null
@@ -218,9 +213,8 @@ function SatellitePropagator({ satGroupRef, orbitRingGroupRef, orbitConfig, simT
 function Earth({ running, groundTrack, stations, satellite, activeStationId, onStationSelect, orbitConfig, onOrbitChange, setDragging, simTimeAnchor, speed, paused, propagatedPosRef }: { running?: boolean; groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void; simTimeAnchor?: string; speed?: string; paused?: boolean; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
   const outlines = useMemo(countryLines, [])
   const orbitRadius = satellite ? 2 + Math.min(1.15, satellite.altitude_km / 1750) : 2.025
-  const orbitRingGroupRef = useRef<THREE.Group>(null)
   const instantaneousOrbit = useMemo(() => {
-    if (!running || !orbitConfig) return null
+    if (running || !orbitConfig) return null
     const points = []
     const epochDate = new Date(orbitConfig.epoch)
     for (let i = 0; i <= 120; i++) {
@@ -232,14 +226,13 @@ function Earth({ running, groundTrack, stations, satellite, activeStationId, onS
   }, [running, orbitConfig, orbitRadius])
 
   const smoothTrack = useMemo(() => {
-    if (instantaneousOrbit) return instantaneousOrbit
     if (groundTrack.length < 2) return []
     const points = groundTrack.map((item) => point(item.latitude_deg, item.longitude_deg, orbitRadius))
     const curve = new THREE.CatmullRomCurve3(points, false)
     return curve.getPoints(points.length * 4)
-  }, [groundTrack, orbitRadius, instantaneousOrbit])
+  }, [groundTrack, orbitRadius])
   
-  const satellitePosition = satellite ? point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius) : smoothTrack[0] ?? new THREE.Vector3(2.4, 0, 0)
+  const satellitePosition = satellite ? point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius) : instantaneousOrbit?.[0] ?? new THREE.Vector3(2.4, 0, 0)
   const satGroupRef = useRef<THREE.Group>(null)
   const isPropagating = !!(running && orbitConfig && simTimeAnchor)
   const activeStation = stations.find((station) => station.station_id === activeStationId)
@@ -284,13 +277,18 @@ function Earth({ running, groundTrack, stations, satellite, activeStationId, onS
       {/* Country Outlines - Political Map */}
       {outlines.map((line, index) => <Line key={index} points={line} color="#60a5fa" lineWidth={1.2} transparent opacity={0.8}/>)}
       
-      {/* Very thin elegant orbit line and interaction */}
-      <group ref={orbitRingGroupRef}>
-        {smoothTrack.length > 1 && (
-          <Line points={smoothTrack} color="#e1ff00" lineWidth={0.5} transparent opacity={0.35} />
-        )}
-        <OrbitInteraction track={smoothTrack} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} satellitePosition={satellitePosition} setDragging={setDragging} />
-      </group>
+      {/* Interaction ring (only shown in setup) */}
+      {!running && instantaneousOrbit && instantaneousOrbit.length > 1 && (
+        <group>
+          <Line points={instantaneousOrbit} color="#e1ff00" lineWidth={0.5} transparent opacity={0.35} />
+          <OrbitInteraction track={instantaneousOrbit} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} satellitePosition={satellitePosition} setDragging={setDragging} />
+        </group>
+      )}
+
+      {/* Ground track line (only shown in live view) */}
+      {running && smoothTrack.length > 1 && (
+        <Line points={smoothTrack} color="#e1ff00" lineWidth={0.5} transparent opacity={0.35} />
+      )}
       
       {/* Active Link */}
       {activeLink && <Line points={activeLink} color="#22d3ee" lineWidth={1.8} dashed dashSize={.06} gapSize={.04} transparent opacity={.85}/>}
@@ -319,7 +317,6 @@ function Earth({ running, groundTrack, stations, satellite, activeStationId, onS
       {isPropagating && (
         <SatellitePropagator
           satGroupRef={satGroupRef}
-          orbitRingGroupRef={orbitRingGroupRef}
           orbitConfig={orbitConfig as OrbitParams}
           simTimeAnchor={simTimeAnchor!}
           speed={speed ?? '1x'}
