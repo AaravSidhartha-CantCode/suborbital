@@ -14,7 +14,10 @@
   ],
   "functions": {
     "api/**/*.py": {
-      "includeFiles": "agcc/{backend/src,data}/**"
+      "includeFiles": [
+        "agcc/backend/src/**",
+        "agcc/data/**"
+      ]
     }
   }
 }
