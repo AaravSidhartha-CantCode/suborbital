@@ -528,6 +528,8 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [liveWeatherVisual, setLiveWeatherVisual] = useState<WeatherVisual | null>(null)
   const initializing = useRef(new Set<MissionMode>())
   const fetchingResolution = useRef<Record<string, boolean>>({})
+  const runtimesRef = useRef(runtimes)
+  useEffect(() => { runtimesRef.current = runtimes }, [runtimes])
 
   const refresh = useCallback(async (target: MissionMode) => {
     const client = clients[target]
@@ -595,7 +597,7 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
     initializing.current.clear(); setRuntimes({}); setFailures({}); setResolution(null); fetchingResolution.current = {}
     void initializeAll(appliedDraft, revision)
   }, [appliedDraft, revision, initializeAll])
-  useEffect(() => { const timer = setInterval(() => { for (const target of ['prediction','live','branch'] as MissionMode[]) if (runtimes[target] && !runtimes[target]!.state.paused) void refresh(target) }, 1000); return () => clearInterval(timer) }, [runtimes, refresh])
+  useEffect(() => { const timer = setInterval(() => { for (const target of ['prediction','live','branch'] as MissionMode[]) { const rt = runtimesRef.current[target]; if (rt && !rt.state.paused) void refresh(target) } }, 1000); return () => clearInterval(timer) }, [refresh])
 
   if (!appliedDraft) return <div className="live-unavailable"><h2>Create your custom satellite first</h2><p>The mission controller will remain mounted after creation, including while you return to Setup.</p></div>
   const sharedFailure = failures[mode] ?? failures.prediction ?? failures.live ?? failures.branch

@@ -186,41 +186,14 @@ function OrbitInteraction({ track, orbitConfig, onOrbitChange, satellitePosition
 function Earth({ groundTrack, stations, satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, setDragging }: { groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void }) {
   const outlines = useMemo(countryLines, [])
   const orbitRadius = satellite ? 2 + Math.min(1.15, satellite.altitude_km / 1750) : 2.025
-  const fullTrack = groundTrack.map((item) => point(item.latitude_deg, item.longitude_deg, orbitRadius))
+  const smoothTrack = useMemo(() => {
+    if (groundTrack.length < 2) return []
+    const points = groundTrack.map((item) => point(item.latitude_deg, item.longitude_deg, orbitRadius))
+    const curve = new THREE.CatmullRomCurve3(points, false)
+    return curve.getPoints(points.length * 4)
+  }, [groundTrack, orbitRadius])
   
-  let track = fullTrack
-  const lastIdxRef = useRef(0)
-  if (satellite && fullTrack.length > 0) {
-    const sPos = point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius)
-    let closestIdx = lastIdxRef.current
-    if (closestIdx >= fullTrack.length) closestIdx = 0;
-    
-    let minD = Infinity
-    const searchEnd = Math.min(fullTrack.length, closestIdx + 60)
-    for (let i = closestIdx; i < searchEnd; i++) {
-      const d = fullTrack[i].distanceToSquared(sPos)
-      if (d < minD) {
-        minD = d
-        closestIdx = i
-      }
-    }
-    
-    if (minD > 1.0) {
-      minD = Infinity
-      fullTrack.forEach((p, i) => {
-        const d = p.distanceToSquared(sPos)
-        if (d < minD) {
-          minD = d
-          closestIdx = i
-        }
-      })
-    }
-    
-    lastIdxRef.current = closestIdx
-    // Render only the future portion of the orbit starting from the satellite
-    track = fullTrack.slice(closestIdx)
-  }
-  const satellitePosition = satellite ? point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius) : track[0] ?? new THREE.Vector3(2.4, 0, 0)
+  const satellitePosition = satellite ? point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius) : smoothTrack[0] ?? new THREE.Vector3(2.4, 0, 0)
   const activeStation = stations.find((station) => station.station_id === activeStationId)
   const activeLink = activeStation ? [point(activeStation.latitude_deg, activeStation.longitude_deg, 2.04), satellitePosition] : null
   const texture = useTexture('/textures/earth-day.jpg')
@@ -264,20 +237,9 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
       {outlines.map((line, index) => <Line key={index} points={line} color="#60a5fa" lineWidth={1.2} transparent opacity={0.8}/>)}
       
       {/* Very thin elegant orbit line */}
-      {track.length > 1 && Array.from({ length: 15 }).map((_, i) => {
-        const fadeLength = Math.min(track.length, 150);
-        const segLen = Math.ceil(fadeLength / 15);
-        const start = i * segLen;
-        const end = Math.min(track.length, start + segLen + 1);
-        if (start >= fadeLength || start >= track.length - 1) return null;
-        
-        const segment = track.slice(start, end);
-        const opacity = Math.max(0, 0.8 * (1 - Math.pow(i / 15, 1.2)));
-        
-        return segment.length > 1 ? (
-          <Line key={i} points={segment} color="#e1ff00" lineWidth={0.7} transparent opacity={opacity} />
-        ) : null;
-      })}
+      {smoothTrack.length > 1 && (
+        <Line points={smoothTrack} color="#e1ff00" lineWidth={0.5} transparent opacity={0.35} />
+      )}
       
       {/* Active Link */}
       {activeLink && <Line points={activeLink} color="#22d3ee" lineWidth={1.8} dashed dashSize={.06} gapSize={.04} transparent opacity={.85}/>}
@@ -297,7 +259,7 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
       
       {activeStation && weather && <WeatherEffect position={point(activeStation.latitude_deg, activeStation.longitude_deg, 2.06)} weather={weather}/>}
       <SatelliteAsset position={satellitePosition} />
-      <OrbitInteraction track={track} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} satellitePosition={satellitePosition} setDragging={setDragging} />
+      <OrbitInteraction track={smoothTrack} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} satellitePosition={satellitePosition} setDragging={setDragging} />
     </group>
   )
 }
