@@ -59,7 +59,7 @@ function julianDate(d: Date): number {
   return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + day + frac + b - 1524.5
 }
 
-function gmstRad(d: Date): number {
+export function gmstRad(d: Date): number {
   const jd = julianDate(d)
   const tUt1 = (jd - J2000_JD) / 36525
   let deg =
