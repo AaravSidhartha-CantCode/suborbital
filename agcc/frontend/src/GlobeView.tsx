@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { feature } from 'topojson-client'
 import countries from 'world-atlas/countries-110m.json'
 
-import { propagate, gmstRad, type OrbitParams } from './propagator'
+import { propagate, type OrbitParams } from './propagator'
 
 export type GroundPoint = { latitude_deg: number; longitude_deg: number }
 export type StationMarker = GroundPoint & { station_id: string; name: string; classification: string; assumed_fields: string[] }
