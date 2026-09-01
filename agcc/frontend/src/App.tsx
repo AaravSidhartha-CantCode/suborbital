@@ -3,14 +3,14 @@ import { AgccClient, resetSession } from './api'
 import { AssumptionMark } from './DataStatus'
 import { GlobeView, type GroundPoint, type SatelliteMarker, type StationMarker } from './GlobeView'
 import { SetupGlobe } from './SetupGlobe'
-import { LiveWeather, weatherCondition, type WeatherVisual } from './LiveWeather'
+
 import { StationCatalogPicker } from './StationCatalogPicker'
 
 import { AsteroidBackground, DeepSpaceBackground, ScrubberInput, PresetSelector, SatelliteWireframe, GlassSelect } from './SetupComponents'
 import { Home } from './Home'
 import { MissionLoader } from './MissionLoader'
 import { useMissionStore, type Draft, type MissionMode } from './store'
-import './weather.css'
+
 import './setup-glassmorphism.css'
 import './mission-glass.css'
 import './assumptions.css'
@@ -496,25 +496,7 @@ function SemiGauge({ value, predicted = 0, total, shortfall = 0, color = '#e1ff0
   )
 }
 
-function WeatherGlyph({ weather }: { weather: WeatherVisual }) {
-  const label = weatherCondition(weather)
-  return <span className={`station-weather-icon ${weather.kind}`} role="img" aria-label={`${label} weather`} title={`${label} weather`}>
-    {weather.kind === 'clear' && <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></svg>}
-    {weather.kind === 'partly' && <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 2.5v1.2M3.3 8H2.1M4.7 4.7l-.9-.9M11.3 4.7l.9-.9M7.2 19h10.2a3.8 3.8 0 0 0 .4-7.6 5.6 5.6 0 0 0-10.5-1.2A4.4 4.4 0 0 0 7.2 19Z"/></svg>}
-    {weather.kind === 'cloud' && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 18.2h10.2a4.1 4.1 0 0 0 .5-8.2A6.1 6.1 0 0 0 6.4 8.7a4.8 4.8 0 0 0 .8 9.5Z"/></svg>}
-    {weather.kind === 'rain' && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 15.5h10.2a4.1 4.1 0 0 0 .5-8.2A6.1 6.1 0 0 0 6.4 6a4.8 4.8 0 0 0 .8 9.5Z"/><path d="m8.5 18-1 2M13 18l-1 2M17.5 18l-1 2"/></svg>}
-  </span>
-}
 
-function StationWeatherLabel({ stationName, weather, next = false }: { stationName: string; weather: WeatherVisual | null; next?: boolean }) {
-  return <span className={`station-name-with-weather${next ? ' next' : ''}`}>
-    {weather && <WeatherGlyph weather={weather}/>}
-    <span className="station-weather-copy">
-      <span>{stationName}</span>
-      {weather && <small>{weatherCondition(weather)}</small>}
-    </span>
-  </span>
-}
 
 function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
   const { appliedDraft, revision, mode, setMode } = useMissionStore()
@@ -526,7 +508,7 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [resolution, setResolution] = useState<Resolution | null>(null)
   const [resolutionProposal, setResolutionProposal] = useState<ReplanProposal | null>(null)
   const [resolutionError, setResolutionError] = useState('')
-  const [liveWeatherVisual, setLiveWeatherVisual] = useState<WeatherVisual | null>(null)
+
   const propagatedPosRef = useRef<{ lat: number; lon: number } | null>(null)
   const initializing = useRef(new Set<MissionMode>())
   const fetchingResolution = useRef<Record<string, boolean>>({})
@@ -642,7 +624,7 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
   const toggle = () => setSpeed(state.paused ? (state.speed === 'paused' ? '10x' : state.speed) : 'paused')
   const approved = state.opportunities.filter((item) => item.contact_id).sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at))
   const nextContact = approved.find((item) => Date.parse(item.start_at) > Date.parse(state.sim_time))
-  const displayedContact = state.current_contact ?? nextContact
+
   const route = [
     ...approved.filter((item) => state.current_contact?.contact_id === item.contact_id),
     ...approved.filter((item) => Date.parse(item.start_at) > Date.parse(state.sim_time)),
@@ -754,7 +736,7 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
       <div className="mission-top-row">
         <div style={{ flex: '1.5', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div className="glass-island-globe" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-            <GlobeView running={true} groundTrack={runtime.track} stations={state.stations} satellite={state.satellite} activeStationId={state.current_contact?.station_id} weather={mode === 'live' ? liveWeatherVisual : null} onStationSelect={setSelectedStation} onSatelliteSelect={() => setSelectedSatellite(true)} orbitConfig={appliedDraft.orbit} simTimeAnchor={state.sim_time} speed={state.speed} paused={state.paused} propagatedPosRef={propagatedPosRef} />
+            <GlobeView running={true} groundTrack={runtime.track} stations={state.stations} satellite={state.satellite} activeStationId={state.current_contact?.station_id} onStationSelect={setSelectedStation} onSatelliteSelect={() => setSelectedSatellite(true)} orbitConfig={appliedDraft.orbit} simTimeAnchor={state.sim_time} speed={state.speed} paused={state.paused} propagatedPosRef={propagatedPosRef} />
             
             <div className="globe-left-panel" style={{ position: 'absolute', top: '24px', left: '24px', bottom: '24px', overflowY: 'auto', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none', width: '280px', paddingRight: '12px' }}>
               <div className="earth-caption" style={{ position: 'relative', top: 'auto', left: 'auto', pointerEvents: 'auto', width: '100%', boxSizing: 'border-box', padding: '12px 16px' }}>
@@ -864,12 +846,12 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>GROUND STATION</span>
                   {state.current_contact ? (
-                    <StationWeatherLabel stationName={state.current_contact.station_name} weather={mode === 'live' ? liveWeatherVisual : null}/>
+                    <span className="station-name-with-weather"><span className="station-weather-copy">{state.current_contact.station_name}</span></span>
                   ) : (() => {
                     if (nextContact) return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <span style={{ fontSize: '11px', color: 'rgba(225,255,0,0.6)', letterSpacing: '0.08em' }}>NEXT UP</span>
-                        <StationWeatherLabel stationName={nextContact.station_name} weather={mode === 'live' ? liveWeatherVisual : null} next/>
+                        <span className="station-name-with-weather next"><span className="station-weather-copy">{nextContact.station_name}</span></span>
                       </div>
                     )
                     return <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>NO CONTACTS</span>
@@ -913,7 +895,7 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
             )}
 
 
-            {mode === 'live' && <div style={{ display: 'none' }}><LiveWeather client={client} simulationTime={state.sim_time} activeStationId={displayedContact?.station_id} onActiveWeather={setLiveWeatherVisual}/></div>}
+
           </div>
 
           <div className="glass-island-form mission-metrics budget-metrics" style={{ flex: '1', display: 'flex', flexDirection: 'column', padding: '24px' }}>

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { feature } from 'topojson-client'
 import countries from 'world-atlas/countries-110m.json'
-import type { WeatherVisual } from './LiveWeather'
+
 
 type GeoGeometry = { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] }
 type GeoFeatureCollection = { features: { geometry: GeoGeometry | null; id: string }[] }
@@ -16,7 +16,6 @@ export function FlatMap({
   groundTrack,
   satellite,
   activeStationId,
-  weather: _weather,
   onStationSelect
 }: { 
   stations: StationMarker[], 
@@ -24,7 +23,6 @@ export function FlatMap({
   groundTrack?: GroundPoint[],
   satellite?: SatelliteMarker,
   activeStationId?: string,
-  weather?: WeatherVisual | null,
   onStationSelect?: (station: StationMarker) => void
 }) {
   const paths = useMemo(() => {

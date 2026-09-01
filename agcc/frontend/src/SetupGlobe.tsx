@@ -1,10 +1,10 @@
-import { Line, OrbitControls, Stars, Html, useTexture } from '@react-three/drei'
+import { Line, OrbitControls, Stars, useTexture } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Suspense, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { feature } from 'topojson-client'
 import countries from 'world-atlas/countries-110m.json'
-import { weatherCondition, type WeatherVisual } from './LiveWeather'
+
 
 export type GroundPoint = { latitude_deg: number; longitude_deg: number }
 export type StationMarker = GroundPoint & { station_id: string; name: string; classification: string; assumed_fields: string[] }
@@ -78,21 +78,7 @@ function SatelliteAsset({ position }: { position: THREE.Vector3 }) {
   )
 }
 
-function WeatherEffect({ position, weather }: { position: THREE.Vector3; weather: WeatherVisual }) {
-  if (weather.kind === 'clear') return <pointLight position={position} color="#ffe6a3" intensity={1.2}/>
-  const cloudPosition = position.clone().multiplyScalar(1.08)
-  return (
-    <group position={cloudPosition}>
-      {[-.1, 0, .1].map((offset) => <mesh key={offset} position={[offset, 0, 0]}><sphereGeometry args={[.09 + weather.intensity * .04, 12, 12]}/><meshStandardMaterial color={weather.kind === 'rain' ? '#5a6e82' : '#b0c4cf'} transparent opacity={.85}/></mesh>)}
-      {weather.kind === 'rain' && [-.08, 0, .08].map((offset) => <Line key={`rain-${offset}`} points={[[offset, -.04, 0], [offset, -.24 - weather.intensity * .12, 0]]} color="#66c9ff" lineWidth={1.5} transparent opacity={0.6}/>)}
-      <Html position={[0.2, 0.1, 0]} center>
-        <div style={{ background: 'rgba(5, 10, 15, 0.8)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(8px)', color: '#fff', font: '400 10px "JetBrains Mono", monospace', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
-          {weatherCondition(weather).toUpperCase()}
-        </div>
-      </Html>
-    </group>
-  )
-}
+
 
 function OrbitInteraction({ track, orbitConfig, onOrbitChange, satellitePosition, setDragging }: { track: THREE.Vector3[]; orbitConfig: any; onOrbitChange: any; satellitePosition: THREE.Vector3; setDragging: (v: boolean) => void }) {
   const origin = useRef<{ x: number, y: number, dist: number, raan: number, inclination: number, altitude: number } | null>(null)
@@ -183,7 +169,7 @@ function OrbitInteraction({ track, orbitConfig, onOrbitChange, satellitePosition
   )
 }
 
-function Earth({ groundTrack, stations, satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, setDragging }: { groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void }) {
+function Earth({ groundTrack, stations, satellite, activeStationId, onStationSelect, orbitConfig, onOrbitChange, setDragging }: { groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void }) {
   const outlines = useMemo(countryLines, [])
   const orbitRadius = satellite ? 2 + Math.min(1.15, satellite.altitude_km / 1750) : 2.025
   const track = groundTrack.map((item) => point(item.latitude_deg, item.longitude_deg, orbitRadius))
@@ -250,14 +236,14 @@ function Earth({ groundTrack, stations, satellite, activeStationId, weather, onS
         )
       })}
       
-      {activeStation && weather && <WeatherEffect position={point(activeStation.latitude_deg, activeStation.longitude_deg, 2.06)} weather={weather}/>}
+
       <SatelliteAsset position={satellitePosition} />
       <OrbitInteraction track={track} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} satellitePosition={satellitePosition} setDragging={setDragging} />
     </group>
   )
 }
 
-export function SetupGlobe({ groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void }) {
+export function SetupGlobe({ groundTrack = [], stations = [], satellite, activeStationId, onStationSelect, orbitConfig, onOrbitChange }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void }) {
   const [dragging, setDragging] = useState(false)
   return (
     <div className="globe-canvas" aria-label="Interactive Earth, country outlines, stations, and modeled orbit visualization">
@@ -268,7 +254,7 @@ export function SetupGlobe({ groundTrack = [], stations = [], satellite, activeS
         <pointLight position={[10, 0, 0]} intensity={0.8} color="#60a5fa"/>
         <Stars radius={100} depth={50} count={3500} factor={3} fade speed={.03}/>
         <Suspense fallback={null}>
-          <Earth groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} weather={weather} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} />
+          <Earth groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} />
         </Suspense>
         <OrbitControls enablePan={false} enableRotate={!dragging} enableZoom={!dragging} minDistance={5.4} maxDistance={10}/>
       </Canvas>

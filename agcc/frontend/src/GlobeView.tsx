@@ -1,10 +1,10 @@
-import { Line, OrbitControls, Stars, Html, useTexture } from '@react-three/drei'
+import { Line, OrbitControls, Stars, useTexture } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { feature } from 'topojson-client'
 import countries from 'world-atlas/countries-110m.json'
-import { weatherCondition, type WeatherVisual } from './LiveWeather'
+
 import { propagate, gmstRad, type OrbitParams } from './propagator'
 
 export type GroundPoint = { latitude_deg: number; longitude_deg: number }
@@ -79,21 +79,6 @@ function SatelliteAsset({ position }: { position: THREE.Vector3 }) {
   )
 }
 
-function WeatherEffect({ position, weather }: { position: THREE.Vector3; weather: WeatherVisual }) {
-  if (weather.kind === 'clear') return <pointLight position={position} color="#ffe6a3" intensity={1.2}/>
-  const cloudPosition = position.clone().multiplyScalar(1.08)
-  return (
-    <group position={cloudPosition}>
-      {[-.1, 0, .1].map((offset) => <mesh key={offset} position={[offset, 0, 0]}><sphereGeometry args={[.09 + weather.intensity * .04, 12, 12]}/><meshStandardMaterial color={weather.kind === 'rain' ? '#5a6e82' : '#b0c4cf'} transparent opacity={.85}/></mesh>)}
-      {weather.kind === 'rain' && [-.08, 0, .08].map((offset) => <Line key={`rain-${offset}`} points={[[offset, -.04, 0], [offset, -.24 - weather.intensity * .12, 0]]} color="#66c9ff" lineWidth={1.5} transparent opacity={0.6}/>)}
-      <Html position={[0.2, 0.1, 0]} center>
-        <div style={{ background: 'rgba(5, 10, 15, 0.8)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(8px)', color: '#fff', font: '400 10px "JetBrains Mono", monospace', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
-          {weatherCondition(weather).toUpperCase()}
-        </div>
-      </Html>
-    </group>
-  )
-}
 
 function OrbitInteraction({ track, orbitConfig, onOrbitChange, satellitePosition, setDragging }: { track: THREE.Vector3[]; orbitConfig: any; onOrbitChange: any; satellitePosition: THREE.Vector3; setDragging: (v: boolean) => void }) {
   const origin = useRef<{ x: number, y: number, dist: number, raan: number, inclination: number, altitude: number } | null>(null)
@@ -230,7 +215,7 @@ function SatellitePropagator({ satGroupRef, orbitRingGroupRef, orbitConfig, simT
   return null
 }
 
-function Earth({ running, groundTrack, stations, satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, setDragging, simTimeAnchor, speed, paused, propagatedPosRef }: { running?: boolean; groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void; simTimeAnchor?: string; speed?: string; paused?: boolean; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
+function Earth({ running, groundTrack, stations, satellite, activeStationId, onStationSelect, orbitConfig, onOrbitChange, setDragging, simTimeAnchor, speed, paused, propagatedPosRef }: { running?: boolean; groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void; simTimeAnchor?: string; speed?: string; paused?: boolean; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
   const outlines = useMemo(countryLines, [])
   const orbitRadius = satellite ? 2 + Math.min(1.15, satellite.altitude_km / 1750) : 2.025
   const orbitRingGroupRef = useRef<THREE.Group>(null)
@@ -323,7 +308,7 @@ function Earth({ running, groundTrack, stations, satellite, activeStationId, wea
         )
       })}
       
-      {activeStation && weather && <WeatherEffect position={point(activeStation.latitude_deg, activeStation.longitude_deg, 2.06)} weather={weather}/>}
+
       {isPropagating ? (
         <group ref={satGroupRef} position={satellitePosition}>
           <SatelliteAsset position={[0, 0, 0] as any} />
@@ -377,7 +362,7 @@ function CameraTracker({ tracking, satelliteWorldPos, controlsRef }: { tracking:
   return null
 }
 
-export function GlobeView({ running, groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, simTimeAnchor, speed, paused, propagatedPosRef }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; onSatelliteSelect?: () => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; simTimeAnchor?: string; speed?: string; paused?: boolean; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
+export function GlobeView({ running, groundTrack = [], stations = [], satellite, activeStationId, onStationSelect, orbitConfig, onOrbitChange, simTimeAnchor, speed, paused, propagatedPosRef }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; onStationSelect?: (station: StationMarker) => void; onSatelliteSelect?: () => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; simTimeAnchor?: string; speed?: string; paused?: boolean; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
   const [dragging, setDragging] = useState(false)
   const [tracking, setTracking] = useState(true)
   const controlsRef = useRef<any>(null)
@@ -397,7 +382,7 @@ export function GlobeView({ running, groundTrack = [], stations = [], satellite,
         <pointLight position={[10, 0, 0]} intensity={0.8} color="#60a5fa"/>
         <Stars radius={100} depth={50} count={3500} factor={3} fade speed={.03}/>
         <Suspense fallback={null}>
-          <Earth running={running} groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} weather={weather} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} simTimeAnchor={simTimeAnchor} speed={speed} paused={paused} propagatedPosRef={propagatedPosRef} />
+          <Earth running={running} groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} simTimeAnchor={simTimeAnchor} speed={speed} paused={paused} propagatedPosRef={propagatedPosRef} />
           <CameraTracker tracking={tracking} satelliteWorldPos={satelliteWorldPos} controlsRef={controlsRef} />
         </Suspense>
         <OrbitControls ref={controlsRef} enablePan={false} enableRotate={!dragging && !tracking} enableZoom={!dragging && !tracking} minDistance={3.5} maxDistance={10}/>
