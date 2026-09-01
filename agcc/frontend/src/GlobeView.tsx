@@ -184,15 +184,19 @@ function OrbitInteraction({ track, orbitConfig, onOrbitChange, satellitePosition
   )
 }
 
-function SatellitePropagator({ satGroupRef, orbitConfig, simTimeAnchor, speed, paused, orbitRadius, onPosition }: { satGroupRef: React.RefObject<THREE.Group | null>; orbitConfig: OrbitParams; simTimeAnchor: string; speed: string; paused: boolean; orbitRadius: number; onPosition?: (lat: number, lon: number) => void }) {
-  const anchorWall = useRef(performance.now())
-  const anchorSim = useRef(Date.parse(simTimeAnchor))
-  const lastReport = useRef(0)
+function SatellitePropagator({ satGroupRef, orbitConfig, simTimeAnchor, speed, paused, orbitRadius, propagatedPosRef }: { satGroupRef: React.RefObject<THREE.Group | null>; orbitConfig: OrbitParams; simTimeAnchor: string; speed: string; paused: boolean; orbitRadius: number; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
+  const currentSimMs = useRef(Date.parse(simTimeAnchor))
+  const lastFrameWall = useRef(performance.now())
 
   useEffect(() => {
-    anchorWall.current = performance.now()
-    anchorSim.current = Date.parse(simTimeAnchor)
-  }, [simTimeAnchor])
+    const newSimMs = Date.parse(simTimeAnchor)
+    const drift = Math.abs(currentSimMs.current - newSimMs)
+    const speedNum = (paused ? 0 : parseInt((speed || '1x').replace('x', ''))) || 1
+    const maxDriftSimMs = 10000 * speedNum // 10 seconds of real-time drift tolerance
+    if (drift > maxDriftSimMs || drift > 60000) {
+      currentSimMs.current = newSimMs
+    }
+  }, [simTimeAnchor, speed, paused])
 
   const speedNum = useMemo(() => {
     if (paused) return 0
@@ -201,24 +205,26 @@ function SatellitePropagator({ satGroupRef, orbitConfig, simTimeAnchor, speed, p
   }, [speed, paused])
 
   useFrame(() => {
-    if (!satGroupRef.current || speedNum === 0) return
     const now = performance.now()
-    const elapsed = now - anchorWall.current
-    const simMs = anchorSim.current + elapsed * speedNum
-    const pos = propagate(orbitConfig, new Date(simMs))
+    const deltaWallMs = now - lastFrameWall.current
+    lastFrameWall.current = now
+
+    if (!satGroupRef.current || speedNum === 0) return
+    
+    currentSimMs.current += deltaWallMs * speedNum
+    const pos = propagate(orbitConfig, new Date(currentSimMs.current))
     const v = point(pos.latitude_deg, pos.longitude_deg, orbitRadius)
     satGroupRef.current.position.copy(v)
 
-    if (onPosition && now - lastReport.current > 500) {
-      lastReport.current = now
-      onPosition(pos.latitude_deg, pos.longitude_deg)
+    if (propagatedPosRef) {
+      propagatedPosRef.current = { lat: pos.latitude_deg, lon: pos.longitude_deg }
     }
   })
 
   return null
 }
 
-function Earth({ running, groundTrack, stations, satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, setDragging, simTimeAnchor, speed, paused, onPositionUpdate }: { running?: boolean; groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void; simTimeAnchor?: string; speed?: string; paused?: boolean; onPositionUpdate?: (lat: number, lon: number) => void }) {
+function Earth({ running, groundTrack, stations, satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, setDragging, simTimeAnchor, speed, paused, propagatedPosRef }: { running?: boolean; groundTrack: GroundPoint[]; stations: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; setDragging: (v: boolean) => void; simTimeAnchor?: string; speed?: string; paused?: boolean; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
   const outlines = useMemo(countryLines, [])
   const orbitRadius = satellite ? 2 + Math.min(1.15, satellite.altitude_km / 1750) : 2.025
   const instantaneousOrbit = useMemo(() => {
@@ -342,7 +348,7 @@ function Earth({ running, groundTrack, stations, satellite, activeStationId, wea
           speed={speed ?? '1x'}
           paused={paused ?? false}
           orbitRadius={orbitRadius}
-          onPosition={onPositionUpdate}
+          propagatedPosRef={propagatedPosRef}
         />
       )}
       <OrbitInteraction track={smoothTrack} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} satellitePosition={satellitePosition} setDragging={setDragging} />
@@ -380,7 +386,7 @@ function CameraTracker({ tracking, satelliteWorldPos, controlsRef }: { tracking:
   return null
 }
 
-export function GlobeView({ running, groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, simTimeAnchor, speed, paused, onPositionUpdate }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; onSatelliteSelect?: () => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; simTimeAnchor?: string; speed?: string; paused?: boolean; onPositionUpdate?: (lat: number, lon: number) => void }) {
+export function GlobeView({ running, groundTrack = [], stations = [], satellite, activeStationId, weather, onStationSelect, orbitConfig, onOrbitChange, simTimeAnchor, speed, paused, propagatedPosRef }: { running?: boolean; groundTrack?: GroundPoint[]; stations?: StationMarker[]; satellite?: SatelliteMarker; activeStationId?: string; weather?: WeatherVisual | null; onStationSelect?: (station: StationMarker) => void; onSatelliteSelect?: () => void; orbitConfig?: any; onOrbitChange?: (patch: any) => void; simTimeAnchor?: string; speed?: string; paused?: boolean; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
   const [dragging, setDragging] = useState(false)
   const [tracking, setTracking] = useState(true)
   const controlsRef = useRef<any>(null)
@@ -400,7 +406,7 @@ export function GlobeView({ running, groundTrack = [], stations = [], satellite,
         <pointLight position={[10, 0, 0]} intensity={0.8} color="#60a5fa"/>
         <Stars radius={100} depth={50} count={3500} factor={3} fade speed={.03}/>
         <Suspense fallback={null}>
-          <Earth running={running} groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} weather={weather} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} simTimeAnchor={simTimeAnchor} speed={speed} paused={paused} onPositionUpdate={onPositionUpdate} />
+          <Earth running={running} groundTrack={groundTrack} stations={stations} satellite={satellite} activeStationId={activeStationId} weather={weather} onStationSelect={onStationSelect} orbitConfig={orbitConfig} onOrbitChange={onOrbitChange} setDragging={setDragging} simTimeAnchor={simTimeAnchor} speed={speed} paused={paused} propagatedPosRef={propagatedPosRef} />
           <CameraTracker tracking={tracking} satelliteWorldPos={satelliteWorldPos} controlsRef={controlsRef} />
         </Suspense>
         <OrbitControls ref={controlsRef} enablePan={false} enableRotate={!dragging && !tracking} enableZoom={!dragging && !tracking} minDistance={3.5} maxDistance={10}/>

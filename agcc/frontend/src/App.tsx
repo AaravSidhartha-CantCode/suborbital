@@ -526,7 +526,7 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [resolutionProposal, setResolutionProposal] = useState<ReplanProposal | null>(null)
   const [resolutionError, setResolutionError] = useState('')
   const [liveWeatherVisual, setLiveWeatherVisual] = useState<WeatherVisual | null>(null)
-  const [propagatedPos, setPropagatedPos] = useState<{ lat: number; lon: number } | null>(null)
+  const propagatedPosRef = useRef<{ lat: number; lon: number } | null>(null)
   const initializing = useRef(new Set<MissionMode>())
   const fetchingResolution = useRef<Record<string, boolean>>({})
   const runtimesRef = useRef(runtimes)
@@ -753,12 +753,12 @@ function Mission({ onNavigate }: { onNavigate: (path: string) => void }) {
       <div className="mission-top-row">
         <div style={{ flex: '1.5', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div className="glass-island-globe" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-            <GlobeView running={true} groundTrack={runtime.track} stations={state.stations} satellite={state.satellite} activeStationId={state.current_contact?.station_id} weather={mode === 'live' ? liveWeatherVisual : null} onStationSelect={setSelectedStation} onSatelliteSelect={() => setSelectedSatellite(true)} orbitConfig={appliedDraft.orbit} simTimeAnchor={state.sim_time} speed={state.speed} paused={state.paused} onPositionUpdate={(lat, lon) => setPropagatedPos({ lat, lon })} />
+            <GlobeView running={true} groundTrack={runtime.track} stations={state.stations} satellite={state.satellite} activeStationId={state.current_contact?.station_id} weather={mode === 'live' ? liveWeatherVisual : null} onStationSelect={setSelectedStation} onSatelliteSelect={() => setSelectedSatellite(true)} orbitConfig={appliedDraft.orbit} simTimeAnchor={state.sim_time} speed={state.speed} paused={state.paused} propagatedPosRef={propagatedPosRef} />
             
             <div className="globe-left-panel" style={{ position: 'absolute', top: '24px', left: '24px', bottom: '24px', overflowY: 'auto', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none', width: '280px', paddingRight: '12px' }}>
               <div className="earth-caption" style={{ position: 'relative', top: 'auto', left: 'auto', pointerEvents: 'auto', width: '100%', boxSizing: 'border-box', padding: '12px 16px' }}>
                 <span className="eyebrow" style={{ fontSize: '9px' }}>MODELED CUSTOM SATELLITE · {mode.toUpperCase()} TIMELINE</span>
-                <h2 style={{ fontSize: '18px', margin: '4px 0' }}>{(propagatedPos?.lat ?? state.satellite.latitude_deg).toFixed(2)}°, {(propagatedPos?.lon ?? state.satellite.longitude_deg).toFixed(2)}°</h2>
+                <SatelliteCoordinateReadout satellite={state.satellite} posRef={propagatedPosRef} />
                 <small style={{ fontSize: '9px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   <span className="legend-item active">active</span>
                   <span className="legend-item planned">planned</span>
@@ -1032,4 +1032,16 @@ export default function App() {
       </main>
     </>
   )
+}
+
+function SatelliteCoordinateReadout({ satellite, posRef }: { satellite: any, posRef: React.MutableRefObject<{lat: number, lon: number} | null> }) {
+  const [pos, setPos] = useState<{lat: number, lon: number} | null>(null)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (posRef.current) setPos({ ...posRef.current })
+    }, 500)
+    return () => clearInterval(timer)
+  }, [posRef])
+  
+  return <h2 style={{ fontSize: '18px', margin: '4px 0' }}>{(pos?.lat ?? satellite.latitude_deg).toFixed(2)}°, {(pos?.lon ?? satellite.longitude_deg).toFixed(2)}°</h2>
 }
