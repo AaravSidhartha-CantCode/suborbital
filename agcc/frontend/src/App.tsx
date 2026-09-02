@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AgccClient, resetSession } from './api'
+import { AgccClient, resetSession, ensureSession } from './api'
 import { AssumptionMark } from './DataStatus'
 import { GlobeView, type GroundPoint, type SatelliteMarker, type StationMarker } from './GlobeView'
 import { SetupGlobe } from './SetupGlobe'
@@ -94,6 +94,24 @@ function validateDraft(draft: Draft): string[] {
 }
 
 function OrbitManipulator({ draft, updateOrbit }: { draft: Draft; updateOrbit: (patch: Partial<Draft['orbit']>) => void }) {
+  const [catalogStations, setCatalogStations] = useState<StationMarker[]>([])
+
+  useEffect(() => {
+    ensureSession(clients.prediction)
+      .then(() => clients.prediction.request<{ stations: { station_id: string; name: string; latitude_deg: number; longitude_deg: number }[] }>('/catalog/stations'))
+      .then((data) => {
+        setCatalogStations(data.stations.map(s => ({
+          station_id: s.station_id,
+          name: s.name,
+          classification: 'catalog',
+          assumed_fields: [],
+          latitude_deg: s.latitude_deg,
+          longitude_deg: s.longitude_deg
+        })))
+      })
+      .catch(console.error)
+  }, [])
+
   const preview = useMemo(() => Array.from({ length: 121 }, (_, index) => {
     const argument = index / 120 * Math.PI * 2
     const inclination = draft.orbit.inclination_deg * Math.PI / 180
@@ -102,7 +120,7 @@ function OrbitManipulator({ draft, updateOrbit }: { draft: Draft; updateOrbit: (
     return { latitude_deg: latitude * 180 / Math.PI, longitude_deg: ((longitude * 180 / Math.PI + 540) % 360) - 180 }
   }), [draft.orbit.inclination_deg, draft.orbit.raan_deg])
   const satellite = preview[Math.round((draft.orbit.phase_deg % 360) / 360 * 120)]
-  return <div className="orbit-preview-stack"><SetupGlobe groundTrack={preview} satellite={{ ...satellite, altitude_km: draft.orbit.altitude_km }} orbitConfig={draft.orbit} onOrbitChange={updateOrbit}/></div>
+  return <div className="orbit-preview-stack"><SetupGlobe groundTrack={preview} satellite={{ ...satellite, altitude_km: draft.orbit.altitude_km }} orbitConfig={draft.orbit} onOrbitChange={updateOrbit} stations={catalogStations}/></div>
 }
 
 function Setup({ path, setPath }: { path: string; setPath: (path: string) => void }) {

@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { AgccClient, ensureSession } from './api'
 import { AssumptionMark } from './DataStatus'
 import { useMissionStore } from './store'
-import { GroundStationWireframe, GlassSelect } from './SetupComponents'
+import { GlassSelect } from './SetupComponents'
+import { SetupGlobe } from './SetupGlobe'
 
-type Station = { station_id: string; name: string; provider_id: string; supported_bands: string[] | null; max_downlink_rate_mbps: number | null; cost_per_minute: number; currency: string; field_provenance: { sources: Record<string, string>; assumptions: string[] } }
+type Station = { station_id: string; name: string; provider_id: string; supported_bands: string[] | null; max_downlink_rate_mbps: number | null; cost_per_minute: number; currency: string; field_provenance: { sources: Record<string, string>; assumptions: string[] }; latitude_deg: number; longitude_deg: number }
 type Catalog = { catalog_id: string; catalog_version: string; stations: Station[] }
 const stationClient = new AgccClient()
 
@@ -37,6 +38,16 @@ export function StationCatalogPicker({ onBack, onContinue }: { onBack?: () => vo
   const displayed = expanded ? visible : visible.slice(0, 20)
   const filteredCompatibleIds = visible.map((station) => station.station_id)
   const allFilteredSelected = filteredCompatibleIds.length > 0 && filteredCompatibleIds.every((id) => draft.stations.includes(id))
+
+  const preview = useMemo(() => Array.from({ length: 121 }, (_, index) => {
+    const argument = index / 120 * Math.PI * 2
+    const inclination = draft.orbit.inclination_deg * Math.PI / 180
+    const latitude = Math.asin(Math.sin(inclination) * Math.sin(argument))
+    const longitude = draft.orbit.raan_deg * Math.PI / 180 + Math.atan2(Math.cos(inclination) * Math.sin(argument), Math.cos(argument))
+    return { latitude_deg: latitude * 180 / Math.PI, longitude_deg: ((longitude * 180 / Math.PI + 540) % 360) - 180 }
+  }), [draft.orbit.inclination_deg, draft.orbit.raan_deg])
+  const satellite = preview[Math.round((draft.orbit.phase_deg % 360) / 360 * 120)]
+
   if (error) return <div className="catalog-error">{error}</div>
   if (!catalog) return <div className="setup-island-row"><div className="glass-island-form"><p>Loading validated station catalogue…</p></div></div>
   return (
@@ -102,8 +113,23 @@ export function StationCatalogPicker({ onBack, onContinue }: { onBack?: () => vo
       </div>
       
       <div className="setup-form-column" style={{ flex: 0.4, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div className="glass-island-globe" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <GroundStationWireframe />
+        <div className="glass-island-globe" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, position: 'relative' }}>
+          <div className="orbit-preview-stack">
+            <SetupGlobe 
+              groundTrack={preview} 
+              satellite={{ ...satellite, altitude_km: draft.orbit.altitude_km }} 
+              orbitConfig={draft.orbit} 
+              onOrbitChange={() => {}} 
+              stations={catalog.stations.map(s => ({
+                station_id: s.station_id,
+                name: s.name,
+                classification: s.provider_id || 'catalog',
+                assumed_fields: s.field_provenance?.assumptions || [],
+                latitude_deg: s.latitude_deg,
+                longitude_deg: s.longitude_deg
+              }))}
+            />
+          </div>
         </div>
         
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
