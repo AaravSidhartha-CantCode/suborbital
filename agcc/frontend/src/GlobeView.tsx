@@ -169,7 +169,7 @@ function OrbitInteraction({ track, orbitConfig, onOrbitChange, satellitePosition
   )
 }
 
-function SatellitePropagator({ satGroupRef, orbitConfig, simTimeAnchor, speed, paused, orbitRadius, propagatedPosRef }: { satGroupRef: React.RefObject<THREE.Group | null>; orbitConfig: OrbitParams; simTimeAnchor: string; speed: string; paused: boolean; orbitRadius: number; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null> }) {
+function SatellitePropagator({ satGroupRef, orbitConfig, simTimeAnchor, speed, paused, orbitRadius, propagatedPosRef, linkRef, activeStation }: { satGroupRef: React.RefObject<THREE.Group | null>; orbitConfig: OrbitParams; simTimeAnchor: string; speed: string; paused: boolean; orbitRadius: number; propagatedPosRef?: React.MutableRefObject<{lat: number, lon: number} | null>; linkRef?: React.RefObject<any>; activeStation?: StationMarker }) {
   const currentSimMs = useRef(Date.parse(simTimeAnchor))
   const lastFrameWall = useRef(performance.now())
 
@@ -205,6 +205,12 @@ function SatellitePropagator({ satGroupRef, orbitConfig, simTimeAnchor, speed, p
 
     const v = point(pos.latitude_deg, pos.longitude_deg, orbitRadius)
     satGroupRef.current.position.copy(v)
+
+    if (linkRef?.current?.geometry && activeStation) {
+      const p1 = point(activeStation.latitude_deg, activeStation.longitude_deg, 2.04)
+      linkRef.current.geometry.setPositions([p1.x, p1.y, p1.z, v.x, v.y, v.z])
+      linkRef.current.computeLineDistances()
+    }
   })
 
   return null
@@ -234,9 +240,9 @@ function Earth({ running, groundTrack, stations, satellite, activeStationId, onS
   
   const satellitePosition = satellite ? point(satellite.latitude_deg, satellite.longitude_deg, orbitRadius) : instantaneousOrbit?.[0] ?? new THREE.Vector3(2.4, 0, 0)
   const satGroupRef = useRef<THREE.Group>(null)
+  const linkRef = useRef<any>(null)
   const isPropagating = !!(running && orbitConfig && simTimeAnchor)
   const activeStation = stations.find((station) => station.station_id === activeStationId)
-  const activeLink = activeStation ? [point(activeStation.latitude_deg, activeStation.longitude_deg, 2.04), satellitePosition] : null
   const texture = useTexture('/textures/earth-day.jpg')
   return (
     <group rotation={[.08, -.45, -.12]}>
@@ -291,7 +297,7 @@ function Earth({ running, groundTrack, stations, satellite, activeStationId, onS
       )}
       
       {/* Active Link */}
-      {activeLink && <Line points={activeLink} color="#22d3ee" lineWidth={1.8} dashed dashSize={.06} gapSize={.04} transparent opacity={.85}/>}
+      {activeStation && <Line ref={linkRef} points={[point(activeStation.latitude_deg, activeStation.longitude_deg, 2.04), satellitePosition]} color="#22d3ee" lineWidth={1.8} dashed dashSize={.06} gapSize={.04} transparent opacity={.85}/>}
       
       {/* Station Markers */}
       {stations.map((station) => { 
@@ -323,6 +329,8 @@ function Earth({ running, groundTrack, stations, satellite, activeStationId, onS
           paused={paused ?? false}
           orbitRadius={orbitRadius}
           propagatedPosRef={propagatedPosRef}
+          linkRef={linkRef}
+          activeStation={activeStation}
         />
       )}
     </group>
